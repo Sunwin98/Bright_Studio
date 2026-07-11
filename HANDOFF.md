@@ -1,4 +1,4 @@
-# HANDOFF — Heaven Send Studio (Neon Yokochō rework)
+# HANDOFF — Bright Studio (Neon Yokochō rework)
 
 เอกสารส่งต่อสำหรับ AI/dev คนถัดไป. อ่านไฟล์นี้ + [README.md](README.md) ก่อนเริ่ม.
 
@@ -60,6 +60,21 @@
 - **อนิเมชั่น**: page-enter stagger, card fade-in, tab slide+glow, button press, title glow — ท้าย `app.css`
 - **บัคแฝงที่แก้**: `window.Neutralino` มีเสมอแม้ใน browser (neutralino.js define global) → เช็คผ่าน `window.HS_IS_NEU` (`typeof NL_PORT !== "undefined"`) + `HS_BACKEND_READY` flag กัน race ที่ event `hs-backend-ready` ยิงก่อน app.js ติด listener — **ห้ามเช็ค `window.Neutralino` ตรงๆ อีก**
 - pytest 16 passed · exe rebuild แล้ว endpoint ใหม่ครบ (fs/packio/projects?zone)
+
+### อัปเดต 2026-07-11 (รอบค่ำ) — "Smart Workspaces + Rebranding & Minimize Fix"
+- **วิดีโอพื้นหลังลูป (Countryside Morning Theme)**: เปลี่ยนพื้นหลังหน้าจอบู๊ตและเวิร์กสเปซหลักให้ใช้วิดีโออนิเมะตอนเช้าของชนบทและรางรถไฟในสายหมอก (.mp4) ย้ายป้ายวิดีโอออกนอก main layout เพื่อป้องกันการโดนลบขณะสลับหน้าเว็บ
+- **ระบบนำร่องไดเรกทอรีอัจฉริยะ (Directory Memory)**: ปุ่มเปิดเลือกโฟลเดอร์/ไฟล์ในหน้า อาวุธ, สกิน, ไอเทม และฟิสิกส์ จะจดจำไดเรกทอรีล่าสุด (Parent Directory Memory) และเมื่อเปิดอีกครั้งจะส่องไปในโฟลเดอร์แม่ทันที
+- **เวิร์กสเปซระบบฟิสิกส์อัจฉริยะ (Smart Physics)**:
+  * สร้าง [inspector.py (Physics)](file:///d:/heaven%20send/heaven_send_studio/app/core/physics/inspector.py) สแกนโมเดล อนิเมชั่น และ Attachable เพื่อวิเคราะห์ข้อต่อกระดูก (Bones Tree) และตรวจจับกลุ่มกระดูกที่มีความต่อเนื่องเป็นสายโซ่ (e.g. `hair_1` -> `hair_2`) ที่ตรงเกณฑ์ฟิสิกส์อัตโนมัติ
+  * ออกแบบ UI [physics.js](file:///d:/heaven%20send/heaven_send_studio/web/js/pages/physics.js) ใหม่ทั้งหมด เพิ่ม Intake Card สำหรับเลือกไฟล์แอดออน/ไฟล์เดียวจบ, เพิ่มฟิลด์แก้ไขกลุ่มกระดูกที่ยืดหยุ่นแสดงผลแยกบรรทัด, และสร้างแผงค้นหารายชื่อกระดูกทั้งหมดในโมเดล (Model Bones Reference List) ที่กดคลิกเพื่อเอาคำใส่กล่องอินพุตได้ทันที
+- **เวิร์กสเปซอาวุธและสกิลอัจฉริยะ (Smart Weapon & Skill)**:
+  * สร้าง [inspector.py (Weapon)](file:///d:/heaven%20send/heaven_send_studio/app/core/weapon/inspector.py) สแกนหาไฟล์ไอเทม JSON ภายใน Behavior Pack อัตโนมัติ พร้อมเปิด Endpoint `/api/weapon/inspect`
+  * อัปเดตหน้า [weapon.js](file:///d:/heaven%20send/heaven_send_studio/web/js/pages/weapon.js) ให้มี Intake Card เช่นเดียวกับหน้าฟิสิกส์ โดยเมื่อเลือกไฟล์แอดออน/โฟลเดอร์ จะเติมข้อมูลพาธ BP, RP และข้อมูลพาธไฟล์ไอเทมทั้ง 5 ชิ้นให้อัตโนมัติโดยสมบูรณ์
+- **แก้บัคระบบย่อแอปพลิเคชัน (Borderless Window Minimize Fix)**: เพิ่มการตรวจจับอีเวนต์ `before_show` ใน [run.py](file:///d:/heaven%20send/heaven_send_studio/run.py) เพื่อฉีดสไตล์ระบบ `WS_MINIMIZEBOX` และ `WS_SYSMENU` เข้าไปใน Windows HWND ทำให้สามารถกดย่อหน้าต่าง (Minimize) ตัวแอปไร้ขอบ (Frameless) และคลิกกู้คืน (Restore) จาก Taskbar ได้อย่างสมบูรณ์แบบโดยหน้าต่างไม่ค้างหรือหายไป
+- **การเปลี่ยนชื่อระบบอย่างสมบูรณ์ (Rebranding to Bright Studio)**:
+  * เปลี่ยนชื่อแอปและแบรนด์ทั้งหมดจาก Heaven Send Studio ไปเป็น **Bright Studio**
+  * อัปเดตการตั้งค่าใน [neutralino.config.json](file:///d:/heaven%20send/heaven_send_studio/neutralino.config.json), [run.py](file:///d:/heaven%20send/heaven_send_studio/run.py), และ [web/index.html](file:///d:/heaven%20send/heaven_send_studio/web/index.html)
+  * ปรับโครงสร้างระบบบิลด์ [build.bat](file:///d:/heaven%20send/heaven_send_studio/build.bat) และ [ล้างระบบ.bat](file:///d:/heaven%20send/heaven_send_studio/%E0%B8%A5%E0%B9%8Dynamic%20%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A.bat) เพื่อรวบรวมไฟล์เข้าสู่โฟลเดอร์บิลด์ปลายทาง `dist\bright-studio` โดยลบโปรเซสค้างและโฟลเดอร์ตัวเก่าออกทั้งหมดเรียบร้อย
 
 ### ค้างคา (ถ้าอยากทำต่อ)
 1. **FM: ปุ่ม Deploy addon จาก store → เข้าโลก/com.mojang (C9)** — เชื่อม FM กับ tab โปรเจกต์ (มี `/api/projects/deploy` อยู่แล้ว) ให้ครบวงจร
