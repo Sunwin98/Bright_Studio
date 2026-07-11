@@ -47,7 +47,6 @@
 
 ### ยัง verify ไม่ครบ (คนถัดไปช่วยเช็ค)
 - **delete flow live**: ยังไม่กดลบจริง (กันลบโลก/addon ของ user). ควรทดสอบด้วย addon/โลกที่ทิ้งได้
-- **titlebar ปุ่ม**: min/max/close ทดสอบใน browser ไม่ได้ (ซ่อน). ต้องรัน `run.py` จริงแล้วลองกด — ยืนยันว่า `WindowApi.win_toggle_max()` ทำงาน (pywebview บางเวอร์ชันไม่มี `maximize()` → fallback `toggle_fullscreen()`)
 
 ---
 
@@ -76,6 +75,14 @@
   * อัปเดตการตั้งค่าใน [neutralino.config.json](file:///d:/heaven%20send/heaven_send_studio/neutralino.config.json), [run.py](file:///d:/heaven%20send/heaven_send_studio/run.py), และ [web/index.html](file:///d:/heaven%20send/heaven_send_studio/web/index.html)
   * ปรับโครงสร้างระบบบิลด์ [build.bat](file:///d:/heaven%20send/heaven_send_studio/build.bat) และ [ล้างระบบ.bat](file:///d:/heaven%20send/heaven_send_studio/%E0%B8%A5%E0%B9%8Dynamic%20%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A.bat) เพื่อรวบรวมไฟล์เข้าสู่โฟลเดอร์บิลด์ปลายทาง `dist\bright-studio` โดยลบโปรเซสค้างและโฟลเดอร์ตัวเก่าออกทั้งหมดเรียบร้อย
 
+### อัปเดต 2026-07-11 (รอบดึก) — "Script Lab" (Claude)
+ระบบแก้ config อาวุธ/สกิลตัวใหม่ แยกไฟล์ทั้งหมด (แทน weaponcfg ในระยะยาว — weaponcfg เดิมยังอยู่):
+- `app/core/scriptlab/parser.py` — **span-preserving JS parser** (tokenizer เขียนเอง ไม่มี dep ใหม่): จับ `const X = {...}` / `export const` ทุกก้อน + คอมเมนต์ไทยเป็น label + section header; **เขียนกลับแบบ splice เฉพาะ span ของค่า** → format/คอมเมนต์เดิมอยู่ครบ byte-identical (ต่างจาก tdcmodel ConfigParser เดิมที่ minify ทับทั้งก้อน). Tier 2 fallback สำหรับไฟล์ inline (ตัวเลข+คอมเมนต์). อ่าน/เขียนแบบ surrogateescape → BOM/CRLF รอด
+- `app/core/scriptlab/analyzer.py` — สรุปไฟล์จาก docblock (ชื่อสกิลไทยขึ้น sidebar), kind (config/skill/main/util/inline), tag+unit heuristic (`*_ticks` → โชว์แปลงเป็นวินาทีสด)
+- `app/api/scriptlab.py` — `/api/sl/open` (รับ .mcaddon/.zip/โฟลเดอร์ ผ่าน packio) · `/api/sl/parse` · `/api/sl/save` (mtime stale check → 409, สำรอง `.bak` ทุกครั้ง)
+- `web/js/pages/scriptlab.js` + `web/css/scriptlab.css` + tab "Script Lab" ในโซนสกิล
+- **Verified live**: Night_skills (11 ไฟล์, 136 fields), .mcaddon จริง, save round-trip บนสำเนาไฟล์จริง = แก้ค่าเดียว ที่เหลือ identical, stale → 409; UI ครบ (search/dirty/save counter/tick hint); pytest **22 passed**; exe rebuild แล้ว `/api/sl/*` = 200
+
 ### ค้างคา (ถ้าอยากทำต่อ)
 1. **FM: ปุ่ม Deploy addon จาก store → เข้าโลก/com.mojang (C9)** — เชื่อม FM กับ tab โปรเจกต์ (มี `/api/projects/deploy` อยู่แล้ว) ให้ครบวงจร
 2. **Cache/Backup tab ใน FM** — ผู้ใช้ไม่ได้เน้นรอบนี้ แต่ reference มี; ล้าง cache com.mojang ได้จะช่วยพื้นที่
@@ -88,9 +95,8 @@
 
 ## 5. Verify checklist (ทำก่อน merge งานใหม่)
 ```
-# 1. backend เขียว
-py -3.12 tests/test_filemanager.py   # หรือ pytest tests/test_filemanager.py
-py -3.12 tests/test_config.py        # legacy: รันเป็น script
+# 1. backend เขียว (รันเทสต์ทั้งหมด)
+pytest
 
 # 2. live server (ยิง HTTP จริง — อย่าเชื่อ app.routes)
 py -3.12 -m uvicorn app.main:app --port 8777

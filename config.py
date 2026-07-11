@@ -1,4 +1,4 @@
-"""Central paths and brand constants for Heaven Send Studio.
+"""Central paths and brand constants for Bright Studio.
 
 Edit these if the workspace moves. Everything else in the app reads from here,
 so the original tools/assets stay where they are — nothing is duplicated.
@@ -36,7 +36,7 @@ ZONE_STORES: dict[str, list[Path]] = {
 }
 
 # --- Brand constants (mirror the CLI tools) ---
-STORE_NAME = "Heaven Send"
+STORE_NAME = "Bright"
 CREATOR_NAME = "Bright"
 FILE_PREFIX = "heaver"
 
@@ -111,7 +111,7 @@ import os as _os
 import json as _json
 
 if getattr(_sys, "frozen", False):
-    _app_data = Path(_os.environ.get("APPDATA", str(STUDIO_ROOT))) / "HeavenSendStudio"
+    _app_data = Path(_os.environ.get("APPDATA", str(STUDIO_ROOT))) / "BrightStudio"
     _app_data.mkdir(parents=True, exist_ok=True)
     SETTINGS_FILE = _app_data / "settings.json"
 else:
