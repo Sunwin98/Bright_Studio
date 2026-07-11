@@ -1,0 +1,5 @@
+fastapi
+uvicorn
+pywebview
+Pillow
+send2trash

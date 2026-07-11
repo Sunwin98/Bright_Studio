@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.venv/
+venv/
+ENV/
+env/
+
+# Build & Dist
+/build/
+/build_pyi/
+/dist/
+*.spec
+
+# Backups
+*.bak
+*.bak-*
+
+# Neutralino
+.tmp/
+neutralinojs.log
+
+# Local Config & Temp Outputs
+settings.json
+/output/
+.storage/
+
+# OS specific files
+.DS_Store
+Thumbs.db

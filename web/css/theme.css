@@ -1,0 +1,223 @@
+/* ============================================================
+   Heaven Send Studio — "Neon Yokochō" theme
+   Retro-pixel Japanese night. Chill lo-fi, not aggressive cyber.
+   Design tokens + fonts + global effects (titlebar, intro, CRT).
+   Structural component styles live in app.css and reuse these vars.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Silkscreen:wght@400;700&family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap');
+
+:root {
+  /* --- Night sky base --- */
+  --bg-0: #0c1214;   /* deepest slate-forest */
+  --bg-1: #121a1d;   /* app / main */
+  --bg-2: #182226;   /* sidebar / panels */
+  --bg-3: #202c31;   /* cards */
+  --bg-input: #0d1416;
+  --bg-hover: #29373d;
+  --bg-active: #32444b;
+
+  /* --- Text --- */
+  --text: #d4dedf;
+  --text-muted: #7b8e93;
+  --text-bright: #f2f7f8;
+
+  /* --- Neon signs (Re-themed to rural morning) --- */
+  --neon-pink: #fca25d;     /* Warm sun orange */
+  --neon-cyan: #54c079;     /* Fresh rice green */
+  --neon-purple: #7da7d9;   /* Misty morning fog blue */
+  --neon-amber: #e8ac68;    /* Warm wood amber */
+  --accent: var(--neon-pink);
+  --accent-2: var(--neon-cyan);
+
+  /* semantic (kept names compatible with old app.css) */
+  --green: #4ecb71;
+  --red: #e95f74;
+  --yellow: var(--neon-amber);
+
+  --border: #27353b;
+  --border-neon: rgba(84, 192, 121, .35);
+  --radius: 6px;
+
+  /* glows */
+  --glow-pink: 0 0 8px rgba(252, 162, 93, .55);
+  --glow-cyan: 0 0 8px rgba(84, 192, 121, .5);
+
+  /* fonts */
+  --font: "Noto Sans Thai", "Leelawadee UI", "Segoe UI", sans-serif;
+  --font-pixel: "Silkscreen", "DotGothic16", monospace;   /* latin headings/decor */
+  --font-jp: "DotGothic16", "Silkscreen", monospace;        /* katakana signs */
+  --font-mono: "DotGothic16", "Cascadia Code", "Consolas", monospace;
+
+}
+
+body.day-mode {
+  --bg-0: #eef2f5;
+  --bg-1: #ffffff;
+  --bg-2: #f8fafc;
+  --bg-3: #ffffff;
+  --bg-input: #f1f5f9;
+  --bg-hover: #e2e8f0;
+  --bg-active: #cbd5e1;
+
+  --text: #334155;
+  --text-muted: #64748b;
+  --text-bright: #0f172a;
+
+  --border: #e2e8f0;
+  --border-neon: rgba(14, 165, 233, .4);
+
+  --neon-pink: #d97706;
+  --neon-cyan: #16a34a;
+  --neon-purple: #2563eb;
+  --neon-amber: #ca8a04;
+
+  --glow-pink: 0 0 8px rgba(217, 119, 6, .3);
+  --glow-cyan: 0 0 8px rgba(22, 163, 74, .3);
+  background-image: none;
+}
+
+/* ---------- Night background: gradient sky + subtle grid ---------- */
+body {
+  background-color: var(--bg-0);
+  background-image:
+    radial-gradient(1200px 600px at 80% -10%, rgba(84, 192, 121, .15), transparent 60%),
+    radial-gradient(900px 500px at 10% 110%, rgba(252, 162, 93, .12), transparent 55%),
+    linear-gradient(rgba(84, 192, 121, .03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(84, 192, 121, .03) 1px, transparent 1px);
+  background-size: auto, auto, 32px 32px, 32px 32px;
+  background-attachment: fixed;
+}
+
+/* ---------- Utility: neon text ---------- */
+.neon {
+  color: var(--neon-cyan);
+  text-shadow: var(--glow-cyan);
+}
+.neon-pink { color: var(--neon-pink); text-shadow: var(--glow-pink); }
+
+.pixel { font-family: var(--font-pixel); letter-spacing: .5px; }
+
+/* pixel-style hard border with double outline */
+.pixel-border {
+  border: 2px solid var(--border-neon);
+  box-shadow: 0 0 0 2px var(--bg-0), 4px 4px 0 rgba(0, 0, 0, .5);
+}
+
+/* Small vertical katakana sign decoration */
+.katakana-sign {
+  font-family: var(--font-jp);
+  color: var(--neon-pink);
+  text-shadow: var(--glow-pink);
+  writing-mode: vertical-rl;
+  letter-spacing: 4px;
+  opacity: .8;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ---------- Custom Titlebar ---------- */
+#titlebar {
+  height: var(--titlebar-h);
+  min-height: var(--titlebar-h);
+  background: linear-gradient(90deg, var(--bg-0), var(--bg-2));
+  border-bottom: 1px solid var(--neon-pink);
+  box-shadow: 0 1px 8px rgba(252, 162, 93, .25);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  -webkit-app-region: drag;
+  user-select: none;
+  z-index: 10000;
+}
+#titlebar .tb-title {
+  display: flex; align-items: center; gap: 10px;
+  padding-left: 14px;
+  font-family: var(--font-pixel);
+  font-size: 12px; letter-spacing: 2px;
+  color: var(--text-muted); text-transform: uppercase;
+  pointer-events: none;
+}
+#titlebar .tb-title .jp {
+  font-family: var(--font-jp);
+  color: var(--neon-cyan);
+  text-shadow: var(--glow-cyan);
+  letter-spacing: 2px;
+}
+#titlebar .tb-controls { display: flex; height: 100%; -webkit-app-region: no-drag; }
+#titlebar .tb-btn {
+  width: 46px; height: 100%;
+  border: none; background: transparent;
+  color: var(--text-muted); font-size: 15px; line-height: 1;
+  cursor: pointer; transition: background .15s, color .15s;
+}
+#titlebar .tb-btn:hover { background: var(--bg-hover); color: var(--text-bright); }
+#titlebar .tb-btn.close:hover { background: var(--red); color: #fff; }
+/* Hidden in browser dev mode (no pywebview) — toggled by app.js */
+#titlebar.no-native .tb-controls { display: none; }
+
+/* ---------- CRT scanline overlay (subtle / chill) ---------- */
+#crt-overlay {
+  position: fixed; inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 0,
+    rgba(0, 0, 0, 0) 2px,
+    rgba(0, 0, 0, .10) 3px,
+    rgba(0, 0, 0, 0) 4px
+  );
+  opacity: .35;
+  mix-blend-mode: multiply;
+}
+
+/* ---------- Intro boot overlay ---------- */
+#intro-boot {
+  position: fixed; inset: 0;
+  z-index: 10001;
+  background: var(--bg-0);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 22px;
+  transition: opacity .6s ease;
+}
+.intro-bg-video {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  z-index: -1;
+}
+body.day-mode #intro-boot {
+  background: var(--bg-0);
+}
+#intro-boot.hide { opacity: 0; pointer-events: none; }
+.intro-logo {
+  width: 140px; height: 140px;
+  background: url('/assets/cover.png') center/contain no-repeat;
+  filter: drop-shadow(0 0 16px rgba(252, 162, 93, .5));
+  animation: intro-float 2.4s ease-in-out infinite;
+}
+@keyframes intro-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+.intro-title {
+  font-family: var(--font-pixel); letter-spacing: 3px;
+  color: var(--text-bright); font-size: 18px;
+}
+.intro-title .jp { font-family: var(--font-jp); color: var(--neon-cyan); text-shadow: var(--glow-cyan); }
+.intro-bar {
+  width: 260px; height: 8px;
+  border: 1px solid var(--border-neon); background: var(--bg-input);
+  overflow: hidden;
+}
+.intro-bar > i {
+  display: block; height: 100%; width: 0;
+  background: linear-gradient(90deg, var(--neon-cyan), var(--neon-pink));
+  box-shadow: var(--glow-cyan);
+  animation: intro-fill 1.8s ease forwards;
+}
+@keyframes intro-fill { to { width: 100%; } }
+.intro-logs {
+  font-family: var(--font-mono); font-size: 12px; color: var(--text-muted);
+  text-align: center; line-height: 1.7; min-height: 60px;
+}
+.intro-logs .ok { color: var(--neon-cyan); }

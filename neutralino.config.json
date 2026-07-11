@@ -1,0 +1,23 @@
+{
+  "applicationId": "th.bright.studio",
+  "version": "2.0.0",
+  "defaultMode": "window",
+  "port": 0,
+  "documentRoot": "/web/",
+  "url": "/",
+  "enableServer": true,
+  "enableNativeAPI": true,
+  "tokenSecurity": "none",
+  "nativeAllowList": ["app.*", "os.*", "filesystem.*", "window.*", "events.*"],
+  "modes": { "window": {
+    "title": "Bright Studio", "width": 1280, "height": 800,
+    "minWidth": 960, "minHeight": 640, "center": true,
+    "borderless": true, "resizable": true,
+    "icon": "/web/assets/icons/appIcon.png", "enableInspector": false
+  }},
+  "cli": {
+    "binaryName": "bright-studio", "resourcesPath": "/web/",
+    "extensionsPath": "/extensions/", "clientLibrary": "/web/js/neutralino.js",
+    "binaryVersion": "5.5.0", "clientVersion": "5.4.0"
+  }
+}
