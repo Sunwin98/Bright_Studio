@@ -3,9 +3,21 @@ import { api, el } from "./api.js";
 import { setupUI } from "./sound.js";
 import { createMascot, setState } from "./mascot.js";
 import { icon } from "./ui/icons.js";
+import { openPalette } from "./ui/palette.js";
+
+// Ctrl+K / Ctrl+P → global search palette (module runs once — no dup listeners)
+window.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "p")) {
+    e.preventDefault();
+    openPalette();
+  }
+});
 
 // Sidebar zones: each zone groups its tools and has its own project store.
 const ZONES = [
+  { label: "หน้าหลัก · ホーム", tabs: [
+    { hash: "home",      label: "หน้าแรก",         icon: "home" },
+  ]},
   { label: "โซนสกิน · スキン", tabs: [
     { hash: "projects?zone=skin", label: "โปรเจกต์สกิน", icon: "folder" },
     { hash: "skin",      label: "สร้างสกิน",       icon: "palette" },
@@ -15,7 +27,7 @@ const ZONES = [
     { hash: "projects?zone=skill", label: "โปรเจกต์สกิล", icon: "folder" },
     { hash: "weapon",    label: "อาวุธ & สกิล",    icon: "swords" },
     { hash: "item",      label: "สร้างไอเทม/อาวุธ", icon: "dagger" },
-    { hash: "weaponcfg", label: "ตั้งค่าอาวุธขั้นสูง", icon: "sliders" },
+    { hash: "scriptlab", label: "Script Lab",       icon: "sliders" },
   ]},
   { label: "จัดการ · 管理", tabs: [
     { hash: "projects",  label: "โปรเจกต์ทั้งหมด", icon: "archive" },
@@ -55,7 +67,7 @@ function setActive(raw) {
 }
 
 async function route() {
-  const raw = location.hash.replace(/^#\//, "") || "projects?zone=skin";
+  const raw = location.hash.replace(/^#\//, "") || "home";
   const [id, qs] = raw.split("?");
   const params = new URLSearchParams(qs || "");
   setActive(raw);
@@ -173,7 +185,7 @@ createMascot();
 
 function startApp() {
   window.addEventListener("hashchange", route);
-  if (!location.hash) location.hash = "#/projects?zone=skin";
+  if (!location.hash) location.hash = "#/home";
   route();
   checkConn();
 }

@@ -52,6 +52,43 @@ def list_docs():
     return {"docs": docs}
 
 
+@router.get("/knowledge/search")
+def search_docs(q: str):
+    """Case-insensitive full-text search across every doc. Returns per-doc
+    match count + a snippet around the first hit."""
+    needle = q.strip().lower()
+    if len(needle) < 2:
+        raise HTTPException(status_code=400, detail="คำค้นสั้นเกินไป (อย่างน้อย 2 ตัวอักษร)")
+    results = []
+    seen = set()
+    for root in _allowed_roots():
+        for md in sorted(root.glob("*.md")):
+            key = str(md.resolve())
+            if key in seen:
+                continue
+            seen.add(key)
+            try:
+                text = md.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            low = text.lower()
+            count = low.count(needle)
+            if not count:
+                continue
+            i = low.find(needle)
+            snip_start = max(0, i - 60)
+            snippet = text[snip_start:i + len(needle) + 90].replace("\n", " ").strip()
+            results.append({
+                "title": md.stem,
+                "path": str(md),
+                "group": root.name,
+                "count": count,
+                "snippet": ("…" if snip_start else "") + snippet + "…",
+            })
+    results.sort(key=lambda r: r["count"], reverse=True)
+    return {"query": q, "results": results[:40]}
+
+
 @router.get("/knowledge/doc")
 def read_doc(path: str):
     p = Path(path)

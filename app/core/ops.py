@@ -73,8 +73,36 @@ def deploy_status() -> dict:
     return {"found": mj is not None, "com_mojang": str(mj) if mj else None}
 
 
+def _pack_identity(dest: Path, ptype: str) -> dict:
+    """Read the just-deployed pack's manifest header so callers can wire it into
+    a world (add-to-world flow). Tolerant JSON; never raises."""
+    info = {"type": ptype, "name": dest.name, "uuid": None,
+            "version": [1, 0, 0], "path": str(dest)}
+    mp = dest / "manifest.json"
+    if not mp.is_file():
+        return info
+    try:
+        from app.core.filemanager import _load_json
+        manifest = _load_json(mp)
+        header = manifest.get("header", {}) if isinstance(manifest, dict) else {}
+        info["uuid"] = header.get("uuid")
+        if header.get("version") is not None:
+            info["version"] = header.get("version")
+        name = (header.get("name") or "").strip()
+        # Ignore unresolved localization tokens (e.g. "pack.name") as a display name.
+        if name and not name.startswith("pack."):
+            info["name"] = name
+    except Exception:
+        pass
+    return info
+
+
 def deploy_project(bp_path: str | None, rp_path: str | None) -> dict:
-    """Copy BP/RP into Minecraft's development pack folders for in-game testing."""
+    """Copy BP/RP into Minecraft's development pack folders for in-game testing.
+
+    Response keeps the legacy `deployed` (list of dest path strings) and
+    `com_mojang`, and adds `deployed_packs` — pack identities read from each
+    deployed manifest so the caller can add them straight into a world."""
     mj = config.find_com_mojang()
     if mj is None:
         raise ValueError(
@@ -83,20 +111,22 @@ def deploy_project(bp_path: str | None, rp_path: str | None) -> dict:
         )
 
     deployed = []
+    deployed_packs = []
     jobs = []
     if bp_path and os.path.isdir(bp_path):
-        jobs.append((bp_path, mj / "development_behavior_packs"))
+        jobs.append((bp_path, mj / "development_behavior_packs", "behavior"))
     if rp_path and os.path.isdir(rp_path):
-        jobs.append((rp_path, mj / "development_resource_packs"))
+        jobs.append((rp_path, mj / "development_resource_packs", "resource"))
     if not jobs:
         raise ValueError("ไม่พบโฟลเดอร์ BP หรือ RP ที่จะ deploy")
 
-    for src, dest_root in jobs:
+    for src, dest_root, ptype in jobs:
         dest_root.mkdir(parents=True, exist_ok=True)
         dest = dest_root / os.path.basename(src)
         if dest.exists():
             shutil.rmtree(dest)
         shutil.copytree(src, dest)
         deployed.append(str(dest))
+        deployed_packs.append(_pack_identity(dest, ptype))
 
-    return {"deployed": deployed, "com_mojang": str(mj)}
+    return {"deployed": deployed, "deployed_packs": deployed_packs, "com_mojang": str(mj)}

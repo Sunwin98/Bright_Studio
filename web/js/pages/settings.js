@@ -153,7 +153,9 @@ export async function render(main) {
     }),
     mkToggle("ข้ามหน้าต่าง Intro", "hs_skip_intro", "เปิด (ข้าม)", "ปิด (โชว์)", "false"),
     mkToggle("เสียงประกอบ (SFX)", "hs_sfx", "เปิด", "ปิด", "true", (v) => setSFX(v === "true")),
-    mkToggle("เสียงเพลง (BGM)", "hs_bgm", "เปิด", "ปิด", "false", (v) => setBGM(v === "true"))
+    mkToggle("เสียงเพลง (BGM)", "hs_bgm", "เปิด", "ปิด", "false", (v) => setBGM(v === "true")),
+    el("div", { class: "field-hint" },
+      "BGM ใช้ไฟล์ web/assets/bgm.mp3 — วางเพลง lo-fi (CC0) ของคุณเองได้เลย ไม่มีไฟล์จะเป็นเสียง ambient เบาๆ แทน"),
   );
   main.append(uiSettingsCard);
 

@@ -35,12 +35,35 @@ def _strip_mc_codes(s: str) -> str:
     return re.sub(r"§.", "", s).strip()
 
 
+def _lang_name(folder: Path) -> str | None:
+    """Resolve a localized pack name from texts/*.lang (`pack.name=...`)."""
+    texts = folder / "texts"
+    if not texts.is_dir():
+        return None
+    candidates = [texts / "th_TH.lang", texts / "en_US.lang"]
+    candidates += sorted(p for p in texts.glob("*.lang") if p not in candidates)
+    for lf in candidates:
+        if not lf.is_file():
+            continue
+        try:
+            for line in lf.read_text(encoding="utf-8-sig", errors="replace").splitlines():
+                if line.strip().startswith("pack.name"):
+                    _, _, val = line.partition("=")
+                    val = _strip_mc_codes(val.strip())
+                    if val:
+                        return val
+        except OSError:
+            continue
+    return None
+
+
 def _manifest_name(manifest: dict, folder: Path) -> str:
     header = manifest.get("header", {}) if isinstance(manifest, dict) else {}
     name = _strip_mc_codes((header.get("name") or "").strip())
-    # Localization tokens (e.g. "pack.name") can't be shown as-is → use folder.
+    # Localization tokens (e.g. "pack.name") can't be shown as-is → try the
+    # pack's texts/*.lang first, then fall back to the folder name.
     if not name or (" " not in name and "." in name) or name.startswith("pack."):
-        return folder.name
+        return _lang_name(folder) or folder.name
     return name
 
 

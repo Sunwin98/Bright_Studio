@@ -1,7 +1,7 @@
 import { api, el, pickSingle } from "../api.js";
 import { icon } from "../ui/icons.js";
 
-export function render(main) {
+export function render(main, params) {
   main.innerHTML = "";
   main.append(el("div", { class: "page-header" },
     el("div", { class: "page-title" }, "ตรวจสอบ Addon"),
@@ -27,7 +27,8 @@ export function render(main) {
       resolved = r;
       const parts = [];
       for (const pk of r.packs) parts.push(`${pk.type === "behavior" ? "BP" : "RP"}: ${pk.name}`);
-      detected.textContent = parts.length ? "พบ → " + parts.join(" · ") : "ไม่พบแพ็คข้างใน (ไม่มี manifest.json)";
+      const shown = parts.slice(0, 4).join(" · ") + (parts.length > 4 ? ` · …อีก ${parts.length - 4} แพ็ค` : "");
+      detected.textContent = parts.length ? "พบ → " + shown : "ไม่พบแพ็คข้างใน (ไม่มี manifest.json)";
       detected.className = parts.length ? "field-hint log-ok" : "field-hint log-warn";
     } catch (e) {
       detected.textContent = "แยกไม่ได้: " + e.message;
@@ -56,6 +57,13 @@ export function render(main) {
 
   const result = el("div", {});
   main.append(result);
+
+  // มาจากหน้าอื่น (#/checker?open=<path>) → ใส่พาธ + แยก BP/RP ให้เลย
+  const openParam = params && params.get("open");
+  if (openParam) {
+    srcInput.value = openParam;
+    inspect();
+  }
 
   checkBtn.addEventListener("click", async () => {
     if (!resolved.bp_path && !resolved.rp_path) {

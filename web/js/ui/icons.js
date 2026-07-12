@@ -54,6 +54,7 @@ const PATHS = {
   code: '<path d="M8 8L3.5 12 8 16"/><path d="M16 8l4.5 4-4.5 4"/>',
   drive: '<rect x="3" y="6" width="18" height="12" rx="1.5"/><path d="M3 14h18"/><circle cx="7" cy="16" r=".8" fill="currentColor" stroke="none"/>',
   pickaxe: '<path d="M4 8c3-3 7-4.5 11-4 .5 3 0 6-3 9L7 18"/><path d="M6 15l3 3-2 2-3-3z"/>',
+  heart: '<path d="M12 20s-7-4.5-9-9c-1.2-2.8.6-6 3.7-6 2 0 3.5 1.2 4.3 2.6h2C13.8 6.2 15.3 5 17.3 5c3.1 0 4.9 3.2 3.7 6-2 4.5-9 9-9 9z"/>',
 };
 
 export function iconSvg(name, { size = 16 } = {}) {

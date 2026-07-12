@@ -1,5 +1,7 @@
 import { api, el, pickSingle, getApiBase } from "../api.js";
 import { icon } from "../ui/icons.js";
+import { showContextMenu, gotoPage } from "../ui/contextmenu.js";
+import { addPacksToWorldDialog } from "../ui/worldpicker.js";
 
 let allProjects = [];
 let mainEl = null;
@@ -126,6 +128,19 @@ function card(p, reload) {
     try { const r = await api.post("/api/projects/deploy", { bp_path: bp, rp_path: rp }); status.textContent = "✅ deploy " + r.deployed.length + " pack"; }
     catch (e) { status.textContent = "❌ " + e.message; }
   });
+
+  // Deploy → เปิด world-picker → เพิ่ม pack ที่ deploy ทั้งหมด (BP+RP) เข้าโลกเดียว
+  const deployAndAdd = async () => {
+    if (!bp && !rp) { status.textContent = "❌ ไม่มี BP/RP"; return; }
+    status.textContent = "deploy...";
+    try {
+      const r = await api.post("/api/projects/deploy", { bp_path: bp, rp_path: rp });
+      const packs = r.deployed_packs || [];
+      status.textContent = `✅ deploy ${r.deployed.length} pack`;
+      if (!packs.length) { status.textContent = "deploy แล้ว แต่ไม่พบ pack identity ใน manifest"; return; }
+      addPacksToWorldDialog(packs);
+    } catch (e) { status.textContent = "❌ " + e.message; }
+  };
   const renameBtn = mkBtn(icon("pencil", { size: 15 }), async () => {
     const nn = prompt("เปลี่ยนชื่อเป็น:", p.name);
     if (!nn || nn === p.name) return;
@@ -145,7 +160,7 @@ function card(p, reload) {
     catch (e) { status.textContent = "❌ " + e.message; }
   });
 
-  return el("div", { class: "proj-card", style: "cursor:default" },
+  const cardEl = el("div", { class: "proj-card", style: "cursor:default" },
     el("div", { class: "row", style: "gap:10px;align-items:center" }, thumb,
       el("div", { style: "flex:1;min-width:0" },
         el("div", { class: "proj-name" }, p.name),
@@ -156,4 +171,23 @@ function card(p, reload) {
       openBtn, packBtn, deployBtn, renameBtn, dupBtn, delBtn),
     status,
   );
+  // คลิกขวา → เมนู "ส่งไปที่..." โยงเครื่องมืออื่น
+  cardEl.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    const src = bp || paths.folder || paths.mcaddon || rp;
+    showContextMenu(e.clientX, e.clientY, [
+      src ? { label: "เปิดใน Script Lab", icon: "sliders",
+        onClick: () => gotoPage("scriptlab?open=" + encodeURIComponent(src)) } : null,
+      src ? { label: "ตรวจสอบ Addon", icon: "check-circle",
+        onClick: () => gotoPage("checker?open=" + encodeURIComponent(src)) } : null,
+      (bp || rp) ? { label: "Deploy เข้า com.mojang", icon: "rocket",
+        onClick: () => deployBtn.click() } : null,
+      (bp || rp) ? { label: "Deploy + เพิ่มเข้าโลก…", icon: "rocket",
+        onClick: () => deployAndAdd() } : null,
+      "-",
+      { label: "แพ็คเป็น .mcaddon", icon: "box", onClick: () => packBtn.click() },
+      { label: "เปิดโฟลเดอร์", icon: "folder-open", onClick: () => openBtn.click() },
+    ]);
+  });
+  return cardEl;
 }

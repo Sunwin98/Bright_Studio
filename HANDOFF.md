@@ -82,6 +82,29 @@
 - `app/api/scriptlab.py` — `/api/sl/open` (รับ .mcaddon/.zip/โฟลเดอร์ ผ่าน packio) · `/api/sl/parse` · `/api/sl/save` (mtime stale check → 409, สำรอง `.bak` ทุกครั้ง)
 - `web/js/pages/scriptlab.js` + `web/css/scriptlab.css` + tab "Script Lab" ในโซนสกิล
 - **Verified live**: Night_skills (11 ไฟล์, 136 fields), .mcaddon จริง, save round-trip บนสำเนาไฟล์จริง = แก้ค่าเดียว ที่เหลือ identical, stale → 409; UI ครบ (search/dirty/save counter/tick hint); pytest **22 passed**; exe rebuild แล้ว `/api/sl/*` = 200
+- **Tier 2 ยกเครื่อง (รอบแก้)**: เดิม Script Lab มองไม่เห็นค่าใน function / `let·var` / ค่าไม่มีคอมเมนต์ (ต่างจาก weapon_config ของ Gemini ที่ regex ทั้งไฟล์) → ตอนนี้ tier 2 รันเสริมเสมอ: จับ `key: literal`/`= literal` ทุกที่นอก span ที่ tier 1 แก้ได้แล้ว, จัดกลุ่มตาม**ฟังก์ชันที่ครอบ** (skill functions กลายเป็น section), เจาะเข้า array-of-objects ได้, รองรับ string/bool ด้วย
+- **ยุบรวมแล้ว (2026-07-11)**: ลบ "ตั้งค่าอาวุธขั้นสูง" ทิ้งทั้งชุดตามคำขอผู้ใช้ — `web/js/pages/weaponcfg.js`, `app/api/weapon_config.py`, `app/core/weapon_config/`, `tests/test_weapon_config.py` และ tab ใน app.js. เหลือ Script Lab ตัวเดียว (ไอคอน sliders). endpoint `/api/weapon/config` เดิมใน `weapon.py` ยังอยู่ (ผูกกับ generator ไม่มี UI เรียกแล้ว)
+
+### อัปเดต 2026-07-12 — "Quality of Life" (Claude)
+- **หน้าแรก dashboard** (`web/js/pages/home.js`, frontend-only): ทักทายตามเวลา, ปุ่มลัด 5 ตัว, การ์ดสถิติ (โปรเจกต์สกิน/สกิล, addon Shared, โลก — กดกระโดดได้), งานล่าสุด 8 ตัวรวมสองโซนเรียง mtime + thumbnail. เป็น route default แทน projects. CSS `.hm-*` ท้าย app.css
+- **ชื่อ pack จริงจาก .lang**: `filemanager/_lang_name()` — manifest เป็น token (`pack.name`) → อ่าน `texts/th_TH.lang → en_US.lang → *.lang` ก่อน fallback ชื่อโฟลเดอร์ (เช่น "Animations+ Add-On (MDF)" โผล่แทนชื่อโฟลเดอร์แล้ว)
+- **ค้นหาคลังความรู้**: `/api/knowledge/search?q=` full-text ทุก doc (count + snippet); UI: พิมพ์ = กรองชื่อ, **Enter = ค้นทั้งเนื้อหา**, Esc ล้าง
+- **BGM ไฟล์จริง**: `sound.js` เล่น `web/assets/bgm.mp3` ถ้ามี (loop, vol .25, resume หลัง gesture แรก) → ไม่มีไฟล์ fallback hum เดิม; hint ใน settings บอกวิธีวางไฟล์. **ยังไม่มีไฟล์เพลงจริง — ผู้ใช้ต้องหา lo-fi CC0 มาวางเอง**
+- Verified: dev + exe rebuild, pytest 20 passed, no console errors
+
+### อัปเดต 2026-07-12 — "ระบบโยงเครื่องมือ (context menu)" (Claude)
+- **`web/js/ui/contextmenu.js`**: `showContextMenu(x,y,items)` เมนูลอยตามธีม (คลิกที่อื่น/Esc ปิด, clamp ขอบจอ) + `gotoPage(hash)` นำทางพร้อม payload (บังคับ re-route ถ้า hash ซ้ำ) — **ตัวกลางเชื่อมทุกเครื่องมือ ใช้ตัวนี้เวลาเพิ่มเมนูใหม่**
+- **FM การ์ด addon** (คลิกซ้าย/ขวา): เปิดใน Script Lab · ตรวจสอบ · **เพิ่มเข้าโลก…** (dialog เลือกโลกจากโปรไฟล์ user + ค้นหา → toggle_world_addon enable) · เปิดดูไฟล์ · ลบ. **การ์ดโลก** (คลิกขวา): จัดการ addon/เปิดดู/ลบ
+- **การ์ดโปรเจกต์** (คลิกขวา): Script Lab · ตรวจสอบ · Deploy · แพ็ค · เปิดโฟลเดอร์
+- **หน้า scriptlab + checker รับ `?open=<path>`** → auto-open ทันที (pattern เดียวกันใช้ต่อกับหน้าอื่นได้: render(main, params))
+- Verified live: FM→Script Lab เปิด pack จริง (3 สคริป), dialog เพิ่มเข้าโลก list 61 โลก, โปรเจกต์→checker แยก BP/RP อัตโนมัติ; pytest 20 passed; rebuild exe แล้ว
+- ⚠️ **shell ของเครื่อง dev PATH เพี้ยน** (Git usr/bin หาย — cat/tail/sleep ใช้ไม่ได้): prefix `export PATH="/c/Program Files/Git/usr/bin:/c/Windows/System32:$PATH"` ก่อนทุกคำสั่ง จนกว่าจะแก้ PATH ระบบ
+
+### อัปเดต 2026-07-13 — "Deploy pipeline + Hot-sync + Ctrl+K" (Opus 4.8 เขียน / Fable 5 ตรวจ+ปิดงาน)
+- **Deploy + เพิ่มเข้าโลก… (คลิกเดียวจบ)**: `ops.deploy_project` คืน `deployed_packs` (identity จาก manifest: type/name/uuid/version, token name → ชื่อโฟลเดอร์) → เมนูคลิกขวาการ์ดโปรเจกต์เรียก deploy แล้วเปิด world-picker ใส่ BP+RP เข้าโลกที่เลือกทีเดียว. world-picker แยกเป็น `web/js/ui/worldpicker.js` (ใช้ร่วมกับ FM แล้ว — implementation เดียว)
+- **Script Lab hot-sync** (`app/core/scriptlab/sync.py`): หลังเซฟ ตามหา pack root (manifest.json ใกล้สุด) → match uuid กับทุก pack ใต้ `development_behavior_packs`/`behavior_packs` ของทุกโปรไฟล์ → copy ไฟล์ทับ relative path เดิม → status บอก "sync เข้าเกมแล้ว — พิมพ์ /reload". แก้ไฟล์ที่อยู่ในเกมอยู่แล้ว → แจ้ง already_in_game. sync พังไม่ทำให้ save พัง (คืน error แยก). Tests: `tests/test_scriptlab_sync.py` 4 เคส
+- **Ctrl+K / Ctrl+P palette** (`web/js/ui/palette.js` + wiring ใน app.js): ค้นรวม โปรเจกต์(สกิน+สกิล)/addon ในเครื่อง/โลก/เอกสาร — ลูกศร+Enter หรือเมาส์ → กระโดด: project/addon→Script Lab, world→FM เปิด world editor เลย (`?world=` ใน filemanager), doc→knowledge เปิดเอกสาร (`?doc=`)
+- Verified live ทุก flow: palette 4 ประเภท, Enter เปิด Script Lab จริง, world editor เด้งถูกใบ (COCO), doc เปิดถูก; pytest **24 passed**; ไม่มี console error; exe rebuild + smoke ผ่าน
 
 ### ค้างคา (ถ้าอยากทำต่อ)
 1. **FM: ปุ่ม Deploy addon จาก store → เข้าโลก/com.mojang (C9)** — เชื่อม FM กับ tab โปรเจกต์ (มี `/api/projects/deploy` อยู่แล้ว) ให้ครบวงจร

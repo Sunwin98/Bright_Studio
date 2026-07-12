@@ -2,6 +2,8 @@ import { api, el, getApiBase } from "../api.js";
 import { openWindow, confirmDialog } from "../ui/window.js";
 import { browsePath } from "../ui/explorer.js";
 import { icon } from "../ui/icons.js";
+import { showContextMenu, gotoPage } from "../ui/contextmenu.js";
+import { addPacksToWorldDialog } from "../ui/worldpicker.js";
 
 let profiles = [];
 let curProfile = 0;
@@ -59,9 +61,25 @@ function actionBtns(path, name, kind) {
   );
 }
 
+// เมนูกลาง "ส่งไปที่..." ของการ์ด addon — โยงทุกเครื่องมือ
+function addonMenu(p, x, y) {
+  const tag = p.type === "behavior" ? "BP" : "RP";
+  showContextMenu(x, y, [
+    { label: "เปิดใน Script Lab", icon: "sliders", hint: tag,
+      onClick: () => gotoPage("scriptlab?open=" + encodeURIComponent(p.path)) },
+    { label: "ตรวจสอบ Addon", icon: "check-circle",
+      onClick: () => gotoPage("checker?open=" + encodeURIComponent(p.path)) },
+    p.uuid ? { label: "เพิ่มเข้าโลก…", icon: "globe", onClick: () => addPacksToWorldDialog([p]) } : null,
+    "-",
+    { label: "เปิดดูไฟล์", icon: "folder-open", onClick: () => reveal(p.path) },
+    { label: "ลบ (ลงถังขยะ)", icon: "trash", danger: true,
+      onClick: () => del(p.path, p.name, tag === "BP" ? "behavior pack" : "resource pack") },
+  ]);
+}
+
 function addonCard(p) {
   const tag = p.type === "behavior" ? "BP" : "RP";
-  return el("div", { class: "fm-card" },
+  const card = el("div", { class: "fm-card clickable" },
     cardIcon(p.icon, "box"),
     el("div", { class: "fm-card-body" },
       el("div", { class: "fm-card-name", title: p.name }, p.name),
@@ -69,6 +87,10 @@ function addonCard(p) {
     ),
     actionBtns(p.path, p.name, tag === "BP" ? "behavior pack" : "resource pack"),
   );
+  // คลิกซ้ายหรือขวา → เมนู "ส่งไปที่..."
+  card.addEventListener("click", (e) => addonMenu(p, e.clientX, e.clientY));
+  card.addEventListener("contextmenu", (e) => { e.preventDefault(); addonMenu(p, e.clientX, e.clientY); });
+  return card;
 }
 
 function worldCard(w) {
@@ -81,6 +103,15 @@ function worldCard(w) {
     actionBtns(w.path, w.name, "โลก"),
   );
   card.addEventListener("click", () => openWorld(w));
+  card.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    showContextMenu(e.clientX, e.clientY, [
+      { label: "จัดการ addon ในโลก", icon: "globe", onClick: () => openWorld(w) },
+      { label: "เปิดดูไฟล์", icon: "folder-open", onClick: () => reveal(w.path) },
+      "-",
+      { label: "ลบโลก (ลงถังขยะ)", icon: "trash", danger: true, onClick: () => del(w.path, w.name, "โลก") },
+    ]);
+  });
   return card;
 }
 
@@ -221,7 +252,7 @@ async function loadContent() {
   }
 }
 
-export async function render(main) {
+export async function render(main, params) {
   main.innerHTML = "";
   main.append(el("div", { class: "page-header" },
     el("div", { class: "page-title" }, "จัดการไฟล์ · ファイル"),
@@ -322,4 +353,20 @@ export async function render(main) {
   contentEl = el("div", {});
   main.append(contentEl);
   await loadContent();
+
+  // มาจาก palette (#/filemanager?world=<path>) → สลับไปแท็บโลกแล้วเปิดโลกนั้น
+  const worldParam = params && params.get("world");
+  if (worldParam) {
+    curTab = "worlds";
+    searchQuery = "";
+    searchInput.value = "";
+    curProfile = autoProfileFor("worlds");
+    sel.value = String(curProfile);
+    main.querySelectorAll(".fm-tab").forEach(t => t.classList.toggle("active", t.textContent.trim() === "WORLDS"));
+    updateToolbar();
+    await loadContent();
+    const w = allWorlds.find(x => x.path === worldParam)
+      || { path: worldParam, name: worldParam.split(/[\\/]/).pop() };
+    openWorld(w);
+  }
 }

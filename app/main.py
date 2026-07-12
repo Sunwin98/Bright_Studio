@@ -29,7 +29,7 @@ app.include_router(dialogs.router)
 # import *inside* a present router must surface, not be silently skipped.
 import importlib.util
 
-for _mod in ("projects", "knowledge", "skin", "physics", "weapon", "weapon_config", "checker", "merger", "settings", "filemanager", "fsbrowse", "packio"):
+for _mod in ("projects", "knowledge", "skin", "physics", "weapon", "checker", "merger", "settings", "filemanager", "fsbrowse", "packio", "scriptlab"):
     if importlib.util.find_spec(f"app.api.{_mod}") is None:
         continue
     module = __import__(f"app.api.{_mod}", fromlist=["router"])
