@@ -106,6 +106,20 @@
 - **Ctrl+K / Ctrl+P palette** (`web/js/ui/palette.js` + wiring ใน app.js): ค้นรวม โปรเจกต์(สกิน+สกิล)/addon ในเครื่อง/โลก/เอกสาร — ลูกศร+Enter หรือเมาส์ → กระโดด: project/addon→Script Lab, world→FM เปิด world editor เลย (`?world=` ใน filemanager), doc→knowledge เปิดเอกสาร (`?doc=`)
 - Verified live ทุก flow: palette 4 ประเภท, Enter เปิด Script Lab จริง, world editor เด้งถูกใบ (COCO), doc เปิดถูก; pytest **24 passed**; ไม่มี console error; exe rebuild + smoke ผ่าน
 
+### อัปเดต 2026-07-13 — "โซนโมเดล AI (Meshy)" (Opus 4.8)
+ปั้นโมเดล 3D จากรูป/ข้อความ → ส่งออกเป็น Bedrock geo.json + texture
+- **Backend** `app/core/modelgen/`: `meshy.py` (client urllib ล้วน — image-to-3d/text-to-3d preview+refine, poll, download), `obj_to_geo.py` (**OBJ → Bedrock `poly_mesh` geo.json** format 1.16.0, pure Python: fan-triangulate, flip V, center X/Z + scale ตาม target_size, face_forward 180°, vert order = [pos,normal,uv]). API `app/api/modelgen.py` — `/config /key /image /text /text-refine /status /export`
+- **Frontend** `web/js/pages/modelgen.js` + โซน "โมเดล" ใน sidebar (icon cube): tab จากรูป/จากข้อความ, key gate, progress poll, พรีวิว 3D orbit ผ่าน `<model-viewer>` (CDN — feature online-only อยู่แล้ว) fallback thumbnail, export UI (ชื่อ/ขนาด/โฟลเดอร์). text = preview→refine (ใส่ texture ตอนกดต่อ)
+- **API key**: เก็บใน settings.json (gitignored) ผ่าน `config.set_meshy_key()`; seed ไว้ที่ `%APPDATA%\BrightStudio\settings.json` แล้วสำหรับ exe. **key = ของผู้ใช้ (Meshy) — อย่า commit / อย่า hardcode ในซอร์ส**
+- **ข้อจำกัดที่ต้องรู้**: geo.json ที่ได้เป็น **poly_mesh (mesh import)** ไม่ใช่ cube แก้ทีละกล่อง; ต้อง lowpoly (default 4k, มีตัวเลือก 1.5k/4k/10k) ไม่งั้นหนักเกม; ทำงานต้องออนไลน์ (Meshy API)
+- **Verified**: pytest 30 passed (รวม obj_to_geo 6 เคส), Meshy auth + balance 1116 credits ✓, หน้า UI ครบ (tab/gate/validation ไม่มี console error), backend exe รัน `/api/modelgen/config` = 200. **ยังไม่ได้ยิง generation จริง** (เสียเครดิต + ใช้เวลา 1-3 นาที) — converter ทดสอบด้วย synthetic OBJ; ควรทดสอบ end-to-end จริง 1 ครั้งแล้วเช็ค geo.json เข้าเกม Bedrock (ยืนยัน vert order/scale/UV)
+
+### อัปเดต 2026-07-13 (รอบสอง) — "Model zone v2: แก้เทคเจอร์เพี้ยน + UI ใหม่" (Fable 5)
+- **บัคเทคเจอร์เพี้ยน (สำคัญ)**: converter เดิม flip V (`1-v`) — ผิด. Ground truth จาก Blockbench Meshy plugin (Shadowkitten47/Meshy): **Bedrock poly_mesh V เป็น bottom-up เหมือน OBJ** (plugin flip เฉพาะตอนแปลงเข้า UV space ของ Blockbench) + ลำดับ vertex ยืนยันจาก Mojang schema = `[pos, normal, uv]`. แก้เป็น passthrough แล้ว **พิสูจน์ด้วย re-export งานดาบจริง**: ไฟล์เก่า V+ไฟล์ใหม่ V = 1.0 ทุกจุด (คือ flip เป๊ะๆ). **ห้าม flip V ใน obj_to_geo อีก**
+- **พรีวิว 3D ไม่ขึ้น (แก้แล้ว)**: 2 ชั้น — (1) เพิ่ม `/api/modelgen/proxy?url=` stream ไฟล์ meshy.ai ผ่าน backend (กัน CORS, whitelist host) (2) model-viewer โหมด lazy ไม่ trigger ใน layout เรา → ต้องใส่ `loading="eager"` + `reveal="auto"` (ทดสอบแล้ว loaded=true, glb 4.5MB ผ่าน proxy)
+- **UI v2** (`modelgen.js` เขียนใหม่): 2 คอลัมน์ — ซ้าย controls / ขวา **preview stage ถาวร** (idle → อนิเมชั่นตอนสร้าง: cube โคจร+glow+scanline+% สด → 3D orbit) + export card ใต้ stage + **แถบ "งานล่าสุด"** จาก `/api/modelgen/recent` (list task จาก Meshy — เปิดซ้ำ/re-export ไม่เสียเครดิต). CSS `.mg-*` ท้าย app.css
+- Verified: pytest 30 passed, พรีวิว 3D โหลดจริงใน browser, re-export ดาบ 3864 polys + texture, exe rebuild แล้ว
+
 ### ค้างคา (ถ้าอยากทำต่อ)
 1. **FM: ปุ่ม Deploy addon จาก store → เข้าโลก/com.mojang (C9)** — เชื่อม FM กับ tab โปรเจกต์ (มี `/api/projects/deploy` อยู่แล้ว) ให้ครบวงจร
 2. **Cache/Backup tab ใน FM** — ผู้ใช้ไม่ได้เน้นรอบนี้ แต่ reference มี; ล้าง cache com.mojang ได้จะช่วยพื้นที่

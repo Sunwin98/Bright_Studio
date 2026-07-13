@@ -720,3 +720,162 @@ button .hs-icon, .tab-icon .hs-icon { vertical-align: -3px; }
 .hs-palette-row-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-bright); font-size: 14px; }
 .hs-palette-row-hint { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); flex-shrink: 0; }
 .hs-palette-empty { padding: 24px; text-align: center; color: var(--text-muted); }
+
+/* ---------- Model gen (ui/modelgen) ---------- */
+.mg-viewer {
+  margin: 4px 0 6px; display: flex; justify-content: center; align-items: center;
+  background: rgba(0, 0, 0, .25); border: 1px solid var(--border);
+  border-radius: var(--radius); min-height: 180px; overflow: hidden;
+}
+.mg-viewer model-viewer { --poster-color: transparent; background: transparent; }
+.mg-viewer img { display: block; }
+
+/* ---------- Model gen v2: studio layout + build animation ---------- */
+.mg-layout { 
+  display: grid; 
+  grid-template-columns: 360px 1fr; 
+  gap: 20px; 
+  align-items: stretch;
+  height: calc(100vh - 140px); /* Adjust to fit below title and page-header */
+}
+.mg-controls { 
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.mg-controls .mg-recent-card {
+  flex: 1;
+  min-height: 180px;
+  overflow-y: auto;
+}
+.mg-right { 
+  position: relative;
+  display: flex; 
+  flex-direction: column; 
+  height: 100%;
+  min-width: 0; 
+}
+
+.mg-stage {
+  position: relative; 
+  flex: 1; 
+  min-height: 380px; margin-bottom: 0px;
+  background:
+    radial-gradient(ellipse at 50% 80%, rgba(86, 225, 255, .07), transparent 60%),
+    rgba(0, 0, 0, .3);
+  border: 1px solid var(--border-neon); border-radius: var(--radius);
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.mg-mv { width: 100%; height: 100%; min-height: 420px; --poster-color: transparent; background: transparent; }
+.mg-thumb { max-height: 90%; max-width: 90%; object-fit: contain; }
+.mg-stage-badge {
+  position: absolute; top: 10px; left: 10px;
+  font-size: 11px; font-family: var(--font-mono); letter-spacing: .05em;
+  padding: 3px 10px; border-radius: 10px;
+  background: rgba(86, 225, 255, .14); color: var(--neon-cyan);
+  border: 1px solid rgba(86, 225, 255, .35);
+}
+.mg-stage-badge.warn { background: rgba(255, 210, 90, .12); color: var(--yellow); border-color: rgba(255, 210, 90, .4); }
+
+.mg-idle { text-align: center; padding: 30px; }
+.mg-idle-icon { color: var(--border-neon); opacity: .8; margin-bottom: 10px; animation: mg-float 3.2s ease-in-out infinite; }
+.mg-idle-text { font-weight: 700; color: var(--text-muted); margin-bottom: 4px; }
+@keyframes mg-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+/* build animation: 4 cubes orbiting + glow + scanline */
+.mg-building { text-align: center; width: 100%; padding: 26px; position: relative; }
+.mg-forge { position: relative; width: 120px; height: 120px; margin: 0 auto 18px; }
+.mg-forge-cube {
+  position: absolute; width: 18px; height: 18px; border-radius: 4px;
+  background: linear-gradient(135deg, var(--neon-cyan), var(--neon-pink));
+  box-shadow: 0 0 12px rgba(86, 225, 255, .5);
+  animation: mg-orbit 2.6s linear infinite;
+}
+.mg-forge-cube.c2 { animation-delay: -.65s; }
+.mg-forge-cube.c3 { animation-delay: -1.3s; }
+.mg-forge-cube.c4 { animation-delay: -1.95s; }
+@keyframes mg-orbit {
+  from { transform: rotate(0deg) translateX(46px) rotate(0deg) scale(1); }
+  50%  { transform: rotate(180deg) translateX(46px) rotate(-180deg) scale(.7); }
+  to   { transform: rotate(360deg) translateX(46px) rotate(-360deg) scale(1); }
+}
+.mg-forge-cube { top: 50px; left: 50px; }
+.mg-forge-glow {
+  position: absolute; inset: 30px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 110, 199, .35), transparent 70%);
+  animation: mg-pulse 1.6s ease-in-out infinite;
+}
+@keyframes mg-pulse { 0%, 100% { transform: scale(.85); opacity: .6; } 50% { transform: scale(1.15); opacity: 1; } }
+
+.mg-prog-pct { font-size: 30px; font-weight: 800; color: var(--text-bright); font-family: var(--font-mono); text-shadow: 0 0 14px rgba(86, 225, 255, .45); }
+.mg-prog-phase { font-size: 13px; color: var(--text-muted); margin: 4px 0 12px; }
+.mg-prog { width: min(340px, 80%); height: 8px; margin: 0 auto; background: rgba(255, 255, 255, .07); border-radius: 5px; overflow: hidden; }
+.mg-prog-fill {
+  height: 100%; width: 0%; border-radius: 5px;
+  background: linear-gradient(90deg, var(--neon-cyan), var(--neon-pink));
+  box-shadow: 0 0 10px rgba(255, 110, 199, .55);
+  transition: width .6s ease;
+}
+.mg-scanline {
+  position: absolute; left: 0; right: 0; height: 2px; top: 0;
+  background: linear-gradient(90deg, transparent, var(--neon-cyan), transparent);
+  opacity: .5; animation: mg-scan 2.4s linear infinite;
+}
+@keyframes mg-scan { from { top: 0; } to { top: 100%; } }
+
+/* recent tasks strip */
+.mg-recent { display: flex; gap: 8px; flex-wrap: wrap; }
+.mg-recent-item {
+  width: 56px; height: 56px; border-radius: 8px; overflow: hidden; cursor: pointer;
+  border: 1px solid var(--border); background: rgba(0, 0, 0, .3);
+  display: flex; align-items: center; justify-content: center; color: var(--text-muted);
+  transition: border-color .12s, transform .1s;
+}
+.mg-recent-item:hover { border-color: var(--neon-pink); transform: translateY(-2px); }
+.mg-recent-item img { width: 100%; height: 100%; object-fit: cover; }
+
+.mg-img-thumb { margin-top: 8px; }
+.mg-img-thumb img { max-height: 110px; border-radius: 8px; border: 1px solid var(--border); }
+
+@media (max-width: 980px) { 
+  .mg-layout { grid-template-columns: 1fr; height: auto; } 
+  .mg-controls { width: 100%; height: auto; } 
+  .mg-stage { min-height: 400px; flex: none; margin-bottom: 14px; }
+}
+
+/* Drag and Drop Zone */
+.mg-dropzone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 20px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+  background: var(--bg-input);
+  margin-bottom: 8px;
+}
+.mg-dropzone:hover {
+  border-color: var(--neon-cyan);
+}
+.mg-dropzone.dragover {
+  border-color: var(--neon-pink);
+  background: rgba(252, 162, 93, 0.08);
+  box-shadow: var(--glow-pink);
+}
+.mg-dropzone-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 13.5px;
+}
+.mg-dropzone-inner .hs-icon {
+  color: var(--neon-cyan);
+  opacity: 0.8;
+  margin-bottom: 2px;
+}
+.mg-dropzone-inner span {
+  font-weight: 500;
+}

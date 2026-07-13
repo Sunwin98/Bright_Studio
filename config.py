@@ -40,6 +40,9 @@ STORE_NAME = "Bright"
 CREATOR_NAME = "Bright"
 FILE_PREFIX = "heaver"
 
+# --- AI model generation (Meshy). Stored in settings.json (gitignored). ---
+MESHY_API_KEY: str = ""
+
 # --- Minecraft Bedrock com.mojang (for Deploy). Set MC_COM_MOJANG_OVERRIDE to
 # force a path; otherwise the common UWP/Preview install locations are probed. ---
 import os as _os
@@ -122,13 +125,15 @@ _EDITABLE_SINGLE_PATHS = ("MASTER_ASSETS", "DEFAULT_OUTPUT_DIR")
 
 
 def load_settings() -> None:
-    global PROJECT_STORES, MASTER_ASSETS, DEFAULT_OUTPUT_DIR, KNOWLEDGE_DIRS, MC_COM_MOJANG_OVERRIDE, ZONE_STORES
+    global PROJECT_STORES, MASTER_ASSETS, DEFAULT_OUTPUT_DIR, KNOWLEDGE_DIRS, MC_COM_MOJANG_OVERRIDE, ZONE_STORES, MESHY_API_KEY
     if not SETTINGS_FILE.exists():
         return
     try:
         data = _json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
     except Exception:
         return
+    if data.get("meshy_api_key"):
+        MESHY_API_KEY = str(data["meshy_api_key"])
     if data.get("project_stores"):
         PROJECT_STORES = [Path(p) for p in data["project_stores"]]
     if isinstance(data.get("zone_stores"), dict):
@@ -153,7 +158,27 @@ def get_settings() -> dict:
         "mc_com_mojang_override": MC_COM_MOJANG_OVERRIDE,
         "com_mojang_detected": str(detected) if detected else None,
         "zone_stores": {k: [str(p) for p in v] for k, v in ZONE_STORES.items()},
+        "meshy_api_key": MESHY_API_KEY,
     }
+
+
+def _read_settings_file() -> dict:
+    if not SETTINGS_FILE.exists():
+        return {}
+    try:
+        return _json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def set_meshy_key(key: str) -> None:
+    """Persist just the Meshy API key (merges into settings.json, no other
+    fields required — unlike save_settings which validates paths)."""
+    global MESHY_API_KEY
+    MESHY_API_KEY = (key or "").strip()
+    data = _read_settings_file()
+    data["meshy_api_key"] = MESHY_API_KEY
+    SETTINGS_FILE.write_text(_json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 def save_settings(data: dict) -> dict:
@@ -189,6 +214,7 @@ def save_settings(data: dict) -> dict:
         "knowledge_dirs": kdirs,
         "mc_com_mojang_override": mojang,
         "zone_stores": {k: [str(p) for p in v] for k, v in ZONE_STORES.items()},
+        "meshy_api_key": MESHY_API_KEY,  # preserve — not edited on this page
     }, indent=2, ensure_ascii=False), encoding="utf-8")
 
     return get_settings()

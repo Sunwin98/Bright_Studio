@@ -90,6 +90,8 @@ def main() -> None:
         base,
         width=1280,
         height=800,
+        x=100,
+        y=100,
         min_size=(960, 640),
         frameless=True,
         easy_drag=False,      # dragging handled by titlebar's -webkit-app-region

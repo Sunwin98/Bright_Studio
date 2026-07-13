@@ -29,6 +29,9 @@ const ZONES = [
     { hash: "item",      label: "สร้างไอเทม/อาวุธ", icon: "dagger" },
     { hash: "scriptlab", label: "Script Lab",       icon: "sliders" },
   ]},
+  { label: "โซนโมเดล · モデル", tabs: [
+    { hash: "modelgen",  label: "โมเดล AI",         icon: "cube" },
+  ]},
   { label: "จัดการ · 管理", tabs: [
     { hash: "projects",  label: "โปรเจกต์ทั้งหมด", icon: "archive" },
     { hash: "checker",   label: "ตรวจสอบ Addon",    icon: "check-circle" },

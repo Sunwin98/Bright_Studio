@@ -167,7 +167,7 @@ export async function render(main) {
       updateStatus.textContent = "เวอร์ชันปัจจุบันล่าสุดแล้ว (v2.0.0)";
     }, 1000);
   });
-  
+
   const systemCard = el("div", { class: "card" },
     el("div", { class: "card-title" }, "ระบบ (System)"),
     el("div", { class: "row", style: "align-items:center" }, updateBtn, updateStatus)

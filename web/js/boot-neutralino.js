@@ -4,6 +4,19 @@
 window.HS_IS_NEU = !!(window.Neutralino && typeof NL_PORT !== "undefined");
 if (window.HS_IS_NEU) {
   Neutralino.init();
+  
+  // Programmatically force window to show, position, and focus
+  (async () => {
+    try {
+      await Neutralino.window.show();
+      await Neutralino.window.move(100, 100);
+      await Neutralino.window.setSize({ width: 1280, height: 800 });
+      await Neutralino.window.focus();
+    } catch (e) {
+      console.error("Failed to force window positioning:", e);
+    }
+  })();
+
   let proc = null;
   
   window.hsShutdown = async () => {
