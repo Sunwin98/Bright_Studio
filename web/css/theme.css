@@ -144,6 +144,24 @@ body {
   text-shadow: var(--glow-cyan);
   letter-spacing: 2px;
 }
+.tb-active-project {
+  display: none; align-items: center; gap: 7px;
+  padding: 4px 10px; border-radius: 20px;
+  background: rgba(255, 110, 199, .12); border: 1px solid rgba(255, 110, 199, .35);
+  color: var(--text-bright); font-size: 11.5px; font-family: var(--font-mono);
+  -webkit-app-region: no-drag; cursor: pointer; max-width: 300px;
+  transition: background .15s, border-color .15s;
+}
+.tb-active-project:hover { background: rgba(255, 110, 199, .2); border-color: var(--neon-pink); }
+.tb-active-project .hs-icon { color: var(--neon-pink); flex-shrink: 0; }
+.tb-ap-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tb-ap-clear {
+  flex-shrink: 0; background: none; border: none; padding: 1px;
+  color: var(--text-muted); cursor: pointer; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+.tb-ap-clear:hover { color: #fff; background: var(--red); }
+
 #titlebar .tb-controls { display: flex; height: 100%; -webkit-app-region: no-drag; }
 #titlebar .tb-btn {
   width: 46px; height: 100%;

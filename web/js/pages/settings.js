@@ -1,6 +1,7 @@
 import { api, el, pickSingle } from "../api.js";
 import { setBGM, setSFX } from "../sound.js";
 import { icon } from "../ui/icons.js";
+import { toast } from "../ui/toast.js";
 
 export async function render(main) {
   main.innerHTML = "";
@@ -26,7 +27,7 @@ export async function render(main) {
     const rm = el("button", { class: "btn-ghost btn-sm" }, icon("close", { size: 13 }));
     btn.addEventListener("click", async () => {
       try { const p = await pickSingle({ mode: "folder" }); if (p) input.value = p; }
-      catch (e) { if (e.status !== 501) alert("เลือกไม่ได้: " + e.message); }
+      catch (e) { if (e.status !== 501) toast.error("เลือกไม่ได้: " + e.message); }
     });
     const row = el("div", { class: "file-pick", style: "margin-bottom:6px" }, input, btn, rm);
     rm.addEventListener("click", () => { row.remove(); storeInputs.splice(storeInputs.indexOf(input), 1); });
@@ -46,7 +47,7 @@ export async function render(main) {
     const rm = el("button", { class: "btn-ghost btn-sm" }, icon("close", { size: 13 }));
     btn.addEventListener("click", async () => {
       try { const p = await pickSingle({ mode: "folder" }); if (p) input.value = p; }
-      catch (e) { if (e.status !== 501) alert("เลือกไม่ได้: " + e.message); }
+      catch (e) { if (e.status !== 501) toast.error("เลือกไม่ได้: " + e.message); }
     });
     const row = el("div", { class: "file-pick", style: "margin-bottom:6px" }, input, btn, rm);
     rm.addEventListener("click", () => { row.remove(); kbInputs.splice(kbInputs.indexOf(input), 1); });
@@ -63,7 +64,7 @@ export async function render(main) {
     const btn = el("button", { class: "btn-ghost btn-sm" }, "เลือก");
     btn.addEventListener("click", async () => {
       try { const p = await pickSingle({ mode: "folder" }); if (p) input.value = p; }
-      catch (e) { if (e.status !== 501) alert("เลือกไม่ได้: " + e.message); }
+      catch (e) { if (e.status !== 501) toast.error("เลือกไม่ได้: " + e.message); }
     });
     const field = el("div", { class: "field" },
       el("label", {}, label), el("div", { class: "file-pick" }, input, btn));
@@ -78,7 +79,7 @@ export async function render(main) {
   const mojangBtn = el("button", { class: "btn-ghost btn-sm" }, "เลือก");
   mojangBtn.addEventListener("click", async () => {
     try { const p = await pickSingle({ mode: "folder" }); if (p) mojangInput.value = p; }
-    catch (e) { if (e.status !== 501) alert("เลือกไม่ได้: " + e.message); }
+    catch (e) { if (e.status !== 501) toast.error("เลือกไม่ได้: " + e.message); }
   });
   const detectBtn = el("button", { class: "btn-ghost btn-sm" }, icon("search", { size: 14 }), " ตรวจหาอัตโนมัติ");
   const detectStatus = el("span", { class: "field-hint", style: "margin-left:8px" },
@@ -191,8 +192,10 @@ export async function render(main) {
     try {
       await api.post("/api/settings", body);
       status.textContent = "✅ บันทึกแล้ว — มีผลทันที";
+      toast.success("บันทึกตั้งค่าแล้ว");
     } catch (e) {
       status.textContent = "❌ " + e.message;
+      toast.error("บันทึกไม่สำเร็จ: " + e.message);
     } finally {
       saveBtn.disabled = false;
     }

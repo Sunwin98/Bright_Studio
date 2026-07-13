@@ -4,6 +4,7 @@
 // (model-viewer via backend proxy — no CORS), and the export card underneath.
 import { api, el, pickSingle, getApiBase } from "../api.js";
 import { icon } from "../ui/icons.js";
+import { toast } from "../ui/toast.js";
 
 let pollTimer = null;
 const proxied = (url) => getApiBase() + "/api/modelgen/proxy?url=" + encodeURIComponent(url);
@@ -60,6 +61,7 @@ function keyGate(root, main) {
 function buildStudio(root) {
   let mode = "image";
   let current = null;   // { mode, taskId } ของงานที่โชว์อยู่
+  let genToast = null;  // toast ค้างข้ามหน้าตราบใดที่ยังปั้นโมเดลอยู่
   let selectedPath = "";
 
   // ════════ LEFT: controls ════════
@@ -103,9 +105,9 @@ function buildStudio(root) {
         dropzone.querySelector("span").textContent = "เลือกรูปแล้ว: " + p.split(/[\\/]/).pop();
         showLocalThumb(p);
       } else if (!p) {
-        alert("โปรแกรมเข้าถึงเส้นทางไฟล์ไม่ได้ กรุณาใช้คลิกเลือกรูปแทน");
+        toast.error("โปรแกรมเข้าถึงเส้นทางไฟล์ไม่ได้ กรุณาใช้คลิกเลือกรูปแทน");
       } else {
-        alert("กรุณาใช้ไฟล์รูปภาพ (.png, .jpg, .jpeg) เท่านั้น");
+        toast.error("กรุณาใช้ไฟล์รูปภาพ (.png, .jpg, .jpeg) เท่านั้น");
       }
     }
   });
@@ -232,12 +234,15 @@ function buildStudio(root) {
       try {
         const s = await api.get(`/api/modelgen/status?mode=${pollMode}&task_id=${encodeURIComponent(taskId)}`);
         setProgress(s.progress, `${label} · ${s.status}`);
+        genToast?.update(`${label}... ${s.progress || 0}%`);
         if (s.status === "SUCCEEDED") { stopPoll(); onDone(s); }
         else if (s.status === "FAILED" || s.status === "CANCELED") {
           stopPoll(); genBtn.disabled = false;
           stage.innerHTML = "";
           stage.append(el("div", { class: "mg-idle" },
             el("div", { class: "log-err" }, "❌ ล้มเหลว: " + (s.task_error || s.status))));
+          genToast?.error("ปั้นโมเดลล้มเหลว: " + (s.task_error || s.status));
+          genToast = null;
         }
       } catch { /* transient */ }
     }, 4000);
@@ -250,6 +255,8 @@ function buildStudio(root) {
     exportSlot.style.display = "";
     exportSlot.append(buildExport(pollMode, taskId));
     genBtn.disabled = false;
+    genToast?.success("ปั้นโมเดลเสร็จแล้ว — พร้อมส่งออก");
+    genToast = null;
     loadRecent();
   };
 
@@ -258,15 +265,23 @@ function buildStudio(root) {
     stageResult(s, { isPreview: true });
     exportSlot.innerHTML = "";
     exportSlot.style.display = "";
+    genToast?.success("พรีวิวพร้อมแล้ว");
+    genToast = null;
     const refineBtn = el("button", { class: "btn-primary" }, icon("palette", { size: 15 }), " ใส่เท็กซ์เจอร์ + ทำต่อ");
     const rst = el("span", { class: "field-hint", style: "margin-left:8px" }, "");
     refineBtn.addEventListener("click", async () => {
       refineBtn.disabled = true;
+      genToast = toast.progress("กำลังใส่เท็กซ์เจอร์...");
       try {
         const r = await api.post("/api/modelgen/text-refine", { preview_task_id: taskId });
         stageGenerating("กำลังใส่เท็กซ์เจอร์ (refine)...");
         poll("text", r.task_id, "ใส่เท็กซ์เจอร์", (fs) => showFinal("text", r.task_id, fs));
-      } catch (e) { rst.textContent = "❌ " + e.message; refineBtn.disabled = false; }
+      } catch (e) {
+        rst.textContent = "❌ " + e.message;
+        refineBtn.disabled = false;
+        genToast?.error("ใส่เท็กซ์เจอร์ไม่สำเร็จ: " + e.message);
+        genToast = null;
+      }
     });
     exportSlot.append(el("div", { class: "card" },
       el("div", { class: "card-title" }, "ขั้นต่อไป"),
@@ -282,14 +297,16 @@ function buildStudio(root) {
     try {
       if (mode === "image") {
         const p = selectedPath.trim();
-        if (!p) { alert("เลือกรูปก่อน"); genBtn.disabled = false; return; }
+        if (!p) { toast.error("เลือกรูปก่อน"); genBtn.disabled = false; return; }
         stageGenerating("กำลังปั้นโมเดลจากรูป... (~1-3 นาที)");
+        genToast = toast.progress("กำลังปั้นโมเดลจากรูป...");
         const r = await api.post("/api/modelgen/image", { image_path: p, target_polycount: poly });
         poll("image", r.task_id, "ปั้นจากรูป", (s) => showFinal("image", r.task_id, s));
       } else {
         const t = promptInput.value.trim();
-        if (!t) { alert("ใส่คำอธิบายก่อน"); genBtn.disabled = false; return; }
+        if (!t) { toast.error("ใส่คำอธิบายก่อน"); genBtn.disabled = false; return; }
         stageGenerating("กำลังปั้นพรีวิวจากข้อความ... (~1-2 นาที)");
+        genToast = toast.progress("กำลังปั้นพรีวิวจากข้อความ...");
         const r = await api.post("/api/modelgen/text", { prompt: t, art_style: artStyle.value, target_polycount: poly });
         poll("text", r.task_id, "พรีวิว", (s) => showPreviewPhase(r.task_id, s));
       }
@@ -297,6 +314,8 @@ function buildStudio(root) {
       genBtn.disabled = false;
       stage.innerHTML = "";
       stage.append(el("div", { class: "mg-idle" }, el("div", { class: "log-err" }, "❌ " + e.message)));
+      genToast?.error("เริ่มปั้นโมเดลไม่สำเร็จ: " + e.message);
+      genToast = null;
     }
   });
 
@@ -315,7 +334,7 @@ function buildStudio(root) {
           try {
             const s = await api.get(`/api/modelgen/status?mode=${t.mode}&task_id=${encodeURIComponent(t.task_id)}`);
             showFinal(t.mode, t.task_id, s);
-          } catch (e) { alert("เปิดไม่ได้: " + e.message); }
+          } catch (e) { toast.error("เปิดไม่ได้: " + e.message); }
         });
         recentBox.append(item);
       }
@@ -355,12 +374,14 @@ function buildExport(mode, taskId) {
     el("option", { value: "32" }, "ใหญ่มาก (32u)"));
   const exportBtn = el("button", { class: "btn-primary" }, icon("save", { size: 15 }), " ส่งออก geo.json + texture");
   const st = el("div", { class: "field-hint", style: "min-height:18px;margin-top:6px" }, "");
+  const makeItemSlot = el("div", {});   // "ทำเป็นไอเทม" form appears here after export
 
   exportBtn.addEventListener("click", async () => {
-    if (!nameInput.value.trim()) { st.textContent = "ตั้งชื่อก่อน"; return; }
+    if (!nameInput.value.trim()) { toast.error("ตั้งชื่อก่อน"); return; }
     exportBtn.disabled = true;
     st.className = "field-hint";
     st.textContent = "กำลังดาวน์โหลด + แปลงเป็น geo.json...";
+    const t = toast.progress("กำลังส่งออก geo.json + texture...");
     try {
       const r = await api.post("/api/modelgen/export", {
         mode, task_id: taskId, name: nameInput.value.trim(),
@@ -374,14 +395,18 @@ function buildExport(mode, taskId) {
         el("div", {}, `✅ เสร็จ! (${r.polys} polys)`),
         el("div", {}, "geo: " + r.geo_path),
         el("div", {}, r.texture_path ? "texture: " + r.texture_path : "— ไม่มี texture"),
-        el("div", { style: "margin-top:4px" }, "identifier: " + r.identifier),
         openBtn,
       );
       exportBtn.disabled = false;
+      t.success(`ส่งออกสำเร็จ (${r.polys} polys)`);
+      // ── close the loop: turn this into a real in-game item ──
+      makeItemSlot.innerHTML = "";
+      makeItemSlot.append(buildMakeItem(r));
     } catch (e) {
       st.className = "field-hint log-err";
       st.textContent = "❌ " + e.message;
       exportBtn.disabled = false;
+      t.error("ส่งออกไม่สำเร็จ: " + e.message);
     }
   });
 
@@ -393,5 +418,82 @@ function buildExport(mode, taskId) {
     el("div", { class: "field", style: "margin-top:8px" }, el("label", {}, "โฟลเดอร์ปลายทาง"),
       el("div", { class: "file-pick" }, outInput, pickOut)),
     el("div", { style: "margin-top:10px" }, exportBtn),
+    st, makeItemSlot);
+}
+
+// After export: one more step turns the geo.json + texture into a usable held
+// item (BP item + RP attachable + geometry wired) — usable in-game immediately.
+function buildMakeItem(exp) {
+  if (!exp.texture_path) {
+    return el("div", { class: "field-hint", style: "margin-top:12px;border-top:1px solid var(--border);padding-top:10px" },
+      "โมเดลนี้ไม่มี texture เลยทำเป็นไอเทมไม่ได้ (ลองสร้างใหม่แบบมีเท็กซ์เจอร์)");
+  }
+  const ns = el("input", { type: "text", value: "ai", style: "max-width:110px" });
+  const itemName = el("input", { type: "text", value: exp.slug || "" });
+  const display = el("input", { type: "text", placeholder: "ชื่อโชว์ในเกม (ว่าง = ชื่อไอเทม)" });
+  const cat = el("select", { style: "width:auto" },
+    ...["equipment", "items", "nature", "construction"].map(c => el("option", { value: c }, c)));
+
+  // target addon: new (default) or existing BP+RP
+  const bpInput = el("input", { type: "text", placeholder: "ว่าง = สร้างแอดออนใหม่" });
+  const rpInput = el("input", { type: "text", placeholder: "(RP ถ้าใส่ BP)" });
+  const pickBp = el("button", { class: "btn-ghost btn-sm" }, icon("folder", { size: 14 }));
+  const pickRp = el("button", { class: "btn-ghost btn-sm" }, icon("folder", { size: 14 }));
+  pickBp.addEventListener("click", async () => { const p = await pickSingle({ mode: "folder" }); if (p) bpInput.value = p; });
+  pickRp.addEventListener("click", async () => { const p = await pickSingle({ mode: "folder" }); if (p) rpInput.value = p; });
+
+  const makeBtn = el("button", { class: "btn-primary" }, icon("dagger", { size: 15 }), " ทำเป็นไอเทมในเกม");
+  const st = el("div", { class: "field-hint", style: "min-height:18px;margin-top:6px" }, "");
+
+  makeBtn.addEventListener("click", async () => {
+    if (!itemName.value.trim()) { toast.error("ตั้งชื่อไอเทมก่อน"); return; }
+    makeBtn.disabled = true;
+    st.className = "field-hint";
+    st.textContent = "กำลังสร้างไอเทม + attachable...";
+    const t = toast.progress("กำลังสร้างไอเทม...");
+    try {
+      const r = await api.post("/api/modelgen/make-item", {
+        geo_path: exp.geo_path, texture_path: exp.texture_path, icon_path: exp.icon_path,
+        namespace: ns.value.trim() || "ai", item_name: itemName.value.trim(),
+        display_name: display.value.trim(), menu_category: cat.value,
+        bp_path: bpInput.value.trim() || null, rp_path: rpInput.value.trim() || null,
+      });
+      st.innerHTML = "";
+      st.className = "log-ok";
+      const cmd = r.give_command || `/give @s ${r.identifier}`;
+      const copyBtn = el("button", { class: "btn-ghost btn-sm", style: "margin-left:8px" }, "คัดลอก");
+      copyBtn.addEventListener("click", () => navigator.clipboard?.writeText(cmd).catch(() => {}));
+      const openBtn = el("button", { class: "btn-ghost btn-sm", style: "margin-top:6px" }, icon("folder-open", { size: 14 }), " เปิดโฟลเดอร์แอดออน");
+      openBtn.addEventListener("click", () => api.post("/api/projects/open-folder", { path: r.project_path || r.bp_path }).catch(() => {}));
+      st.append(
+        el("div", {}, "✅ สร้างไอเทมสำเร็จ! ใช้ในเกมได้เลย"),
+        el("div", { style: "font-family:var(--font-mono);margin-top:4px" }, cmd, copyBtn),
+        el("div", { class: "field-hint", style: "margin-top:4px" }, "identifier: " + r.identifier),
+        openBtn,
+      );
+      makeBtn.disabled = false;
+      t.success("สร้างไอเทมสำเร็จ: " + cmd);
+    } catch (e) {
+      st.className = "field-hint log-err";
+      st.textContent = "❌ " + e.message;
+      makeBtn.disabled = false;
+      t.error("สร้างไอเทมไม่สำเร็จ: " + e.message);
+    }
+  });
+
+  return el("div", { style: "margin-top:14px;border-top:1px solid var(--border);padding-top:12px" },
+    el("div", { class: "card-title" }, "→ ทำเป็นไอเทมในเกม (ปิด loop)"),
+    el("div", { class: "field-hint", style: "margin-bottom:8px" },
+      "สร้าง item + attachable ครบ ถือได้ในเกมทันที (icon ใช้ภาพพรีวิวจาก AI)"),
+    el("div", { class: "row", style: "gap:8px;flex-wrap:wrap;align-items:flex-end" },
+      el("div", { class: "field", style: "margin:0" }, el("label", {}, "namespace"), ns),
+      el("div", { class: "field", style: "flex:1;min-width:120px;margin:0" }, el("label", {}, "ชื่อไอเทม"), itemName),
+      el("div", { class: "field", style: "margin:0" }, el("label", {}, "หมวด"), cat)),
+    el("div", { class: "field", style: "margin-top:8px" }, el("label", {}, "ชื่อโชว์"), display),
+    el("details", { style: "margin-top:8px" },
+      el("summary", { class: "field-hint", style: "cursor:pointer" }, "ใส่ในแอดออนที่มีอยู่ (ไม่งั้นสร้างใหม่)"),
+      el("div", { class: "field", style: "margin-top:6px" }, el("label", {}, "BP"), el("div", { class: "file-pick" }, bpInput, pickBp)),
+      el("div", { class: "field" }, el("label", {}, "RP"), el("div", { class: "file-pick" }, rpInput, pickRp))),
+    el("div", { style: "margin-top:10px" }, makeBtn),
     st);
 }

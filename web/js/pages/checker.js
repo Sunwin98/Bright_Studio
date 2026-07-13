@@ -1,5 +1,7 @@
 import { api, el, pickSingle } from "../api.js";
 import { icon } from "../ui/icons.js";
+import { toast } from "../ui/toast.js";
+import { activeProjectOpenPath } from "../state/activeProject.js";
 
 export function render(main, params) {
   main.innerHTML = "";
@@ -59,16 +61,18 @@ export function render(main, params) {
   main.append(result);
 
   // มาจากหน้าอื่น (#/checker?open=<path>) → ใส่พาธ + แยก BP/RP ให้เลย
+  // ไม่งั้นถ้ามีโปรเจกต์ปักหมุดอยู่ ใช้พาธของมันแทนอัตโนมัติ
   const openParam = params && params.get("open");
-  if (openParam) {
-    srcInput.value = openParam;
+  const autoPath = openParam || activeProjectOpenPath();
+  if (autoPath) {
+    srcInput.value = autoPath;
     inspect();
   }
 
   checkBtn.addEventListener("click", async () => {
     if (!resolved.bp_path && !resolved.rp_path) {
       if (srcInput.value.trim()) await inspect();
-      if (!resolved.bp_path && !resolved.rp_path) { alert("ยังไม่พบ BP/RP — เลือกไฟล์หรือโฟลเดอร์ addon ก่อน"); return; }
+      if (!resolved.bp_path && !resolved.rp_path) { toast.error("ยังไม่พบ BP/RP — เลือกไฟล์หรือโฟลเดอร์ addon ก่อน"); return; }
     }
     checkBtn.disabled = true;
     result.innerHTML = '<div class="empty">กำลังตรวจ...</div>';

@@ -4,6 +4,7 @@ import { browsePath } from "../ui/explorer.js";
 import { icon } from "../ui/icons.js";
 import { showContextMenu, gotoPage } from "../ui/contextmenu.js";
 import { addPacksToWorldDialog } from "../ui/worldpicker.js";
+import { toast } from "../ui/toast.js";
 
 let profiles = [];
 let curProfile = 0;
@@ -51,7 +52,7 @@ async function del(path, name, kind) {
   try {
     await api.post("/api/fm/delete", { path });
     await loadContent();
-  } catch (e) { alert("ลบไม่สำเร็จ: " + e.message); }
+  } catch (e) { toast.error("ลบไม่สำเร็จ: " + e.message); }
 }
 
 function actionBtns(path, name, kind) {
@@ -143,7 +144,7 @@ async function openWorld(w) {
         });
         openWorld(w); // Refresh UI
       } catch(e) {
-        alert(e.message);
+        toast.error(e.message);
         btn.disabled = false;
       }
     };

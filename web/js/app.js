@@ -4,6 +4,7 @@ import { setupUI } from "./sound.js";
 import { createMascot, setState } from "./mascot.js";
 import { icon } from "./ui/icons.js";
 import { openPalette } from "./ui/palette.js";
+import { mountActiveProjectIndicator } from "./ui/activeProjectIndicator.js";
 
 // Ctrl+K / Ctrl+P → global search palette (module runs once — no dup listeners)
 window.addEventListener("keydown", (e) => {
@@ -48,6 +49,37 @@ const ZONES = [
 const main = document.getElementById("main");
 const tabList = document.getElementById("tab-list");
 
+// ---------- Page cache ----------
+// Each hash (path + query, e.g. "scriptlab?open=...") gets its own DOM
+// container that survives navigation — render() runs once per unique hash,
+// so unsaved form input, scroll position, and any in-flight work (Meshy
+// polling, etc.) keep going untouched while the user is on a different tab.
+// Switching back just un-hides the same node instead of re-rendering.
+const pageCache = new Map(); // raw hash -> container element
+const scrollPos = new WeakMap(); // container -> #main.scrollTop when last hidden
+const MAX_CACHED_PAGES = 24; // evict least-recently-shown beyond this (memory guard)
+
+function hideAllCachedPages() {
+  for (const child of main.children) {
+    if (child.style.display !== "none") scrollPos.set(child, main.scrollTop);
+    child.style.display = "none";
+  }
+}
+
+function touchCacheOrder(raw) {
+  // Map preserves insertion order — re-insert to mark as most-recently-used.
+  const node = pageCache.get(raw);
+  if (!node) return;
+  pageCache.delete(raw);
+  pageCache.set(raw, node);
+  while (pageCache.size > MAX_CACHED_PAGES) {
+    const oldestKey = pageCache.keys().next().value;
+    if (oldestKey === raw) break;
+    pageCache.get(oldestKey)?.remove();
+    pageCache.delete(oldestKey);
+  }
+}
+
 function buildTabs() {
   for (const zone of ZONES) {
     const head = document.createElement("li");
@@ -71,19 +103,35 @@ function setActive(raw) {
 
 async function route() {
   const raw = location.hash.replace(/^#\//, "") || "home";
+  setActive(raw);
+
+  if (pageCache.has(raw)) {
+    hideAllCachedPages();
+    const node = pageCache.get(raw);
+    node.style.display = "";
+    touchCacheOrder(raw);
+    main.scrollTop = scrollPos.get(node) || 0;
+    return;
+  }
+
   const [id, qs] = raw.split("?");
   const params = new URLSearchParams(qs || "");
-  setActive(raw);
-  main.innerHTML = '<div class="loading">กำลังโหลด...</div>';
+  hideAllCachedPages();
+  const container = el("div", { class: "page-enter" });
+  container.innerHTML = '<div class="loading">กำลังโหลด...</div>';
+  main.append(container);
+  
+  // Cache the container immediately so hideAllCachedPages() can hide it if navigated away mid-load
+  pageCache.set(raw, container);
+  touchCacheOrder(raw);
+
   try {
     const mod = await import(`./pages/${id}.js`);
-    main.innerHTML = "";
-    main.classList.remove("page-enter");
-    void main.offsetWidth; // restart CSS animation
-    main.classList.add("page-enter");
-    await mod.render(main, params);
+    container.innerHTML = "";
+    await mod.render(container, params);
   } catch (e) {
-    main.innerHTML = `<div class="placeholder">โหลดหน้า "${id}" ไม่ได้<br><small>${e.message}</small></div>`;
+    pageCache.delete(raw); // Evict from cache if rendering failed
+    container.innerHTML = `<div class="placeholder">โหลดหน้า "${id}" ไม่ได้<br><small>${e.message}</small></div>`;
     console.error(e);
   }
 }
@@ -182,6 +230,7 @@ if (localStorage.getItem("hs_crt") === "false") {
 buildTabs();
 wireTitlebar();
 playIntro();
+mountActiveProjectIndicator(document.getElementById("active-project-slot"));
 
 setupUI();
 createMascot();

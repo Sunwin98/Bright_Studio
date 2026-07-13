@@ -1,5 +1,6 @@
 import { api, el, pickSingle, renderValidation } from "../api.js";
 import { icon as uiIcon } from "../ui/icons.js";
+import { toast } from "../ui/toast.js";
 
 export function render(main) {
   main.innerHTML = "";
@@ -81,12 +82,13 @@ export function render(main) {
       enchantable_value: enchVal.value ? parseInt(enchVal.value) : null,
       cooldown_seconds: cd.value ? parseFloat(cd.value) : null,
     };
-    if (!body.addon_name) { alert("ใส่ชื่อ Add-on"); return; }
-    if (!body.namespace || !body.item_name) { alert("ใส่ namespace + ชื่อไอเทม"); return; }
-    if (!body.model_path || !body.model_texture_path || !body.icon_path) { alert("ใส่โมเดล + texture + icon"); return; }
+    if (!body.addon_name) { toast.error("ใส่ชื่อ Add-on"); return; }
+    if (!body.namespace || !body.item_name) { toast.error("ใส่ namespace + ชื่อไอเทม"); return; }
+    if (!body.model_path || !body.model_texture_path || !body.icon_path) { toast.error("ใส่โมเดล + texture + icon"); return; }
     buildBtn.disabled = true;
     logBox.style.display = "block";
     logBox.textContent = "กำลังสร้าง...";
+    const t = toast.progress("กำลังสร้างไอเทม...");
     try {
       const res = await api.post("/api/weapon/item", body);
       logBox.innerHTML = "";
@@ -94,9 +96,11 @@ export function render(main) {
       logBox.append(el("span", {}, `\n\n📁 ${res.project_path || res.bp_path}\n🔗 geometry: ${res.geometry_id}\n🎮 ${res.give_command}`));
       const v = renderValidation(res.validation);
       if (v) logBox.append(v);
+      t.success("สร้างไอเทมสำเร็จ: " + res.give_command);
     } catch (e) {
       logBox.innerHTML = "";
       logBox.append(el("span", { class: "log-err" }, "❌ " + e.message));
+      t.error("สร้างไอเทมไม่สำเร็จ: " + e.message);
     } finally {
       buildBtn.disabled = false;
     }
@@ -119,7 +123,7 @@ function filePicker(placeholder, filters) {
       const p = await pickSingle({ mode: "open_file", filters, directory });
       if (p) input.value = p;
     }
-    catch (e) { if (e.status === 501) input.focus(); else alert("เลือกไฟล์ไม่ได้: " + e.message); }
+    catch (e) { if (e.status === 501) input.focus(); else toast.error("เลือกไฟล์ไม่ได้: " + e.message); }
   });
   return { node: el("div", { class: "file-pick" }, input, btn), value: () => input.value.trim() };
 }
@@ -140,7 +144,7 @@ function pathPicker(placeholder) {
       const p = await pickSingle({ mode: "folder", directory });
       if (p) input.value = p;
     }
-    catch (e) { if (e.status === 501) input.focus(); else alert("เลือกไม่ได้: " + e.message); }
+    catch (e) { if (e.status === 501) input.focus(); else toast.error("เลือกไม่ได้: " + e.message); }
   });
   return { node: el("div", { class: "file-pick" }, input, btn), value: () => input.value.trim() };
 }

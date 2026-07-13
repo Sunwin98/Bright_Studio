@@ -1,5 +1,6 @@
 import { api, el } from "../api.js";
 import { icon } from "../ui/icons.js";
+import { toast } from "../ui/toast.js";
 
 function fmtSize(b) {
   if (b < 1024) return b + " B";
@@ -51,7 +52,7 @@ export async function render(main) {
       }
       delBtn.addEventListener("click", async () => {
         const sel = checks.filter(c => c.cb.checked).map(c => c.path);
-        if (!sel.length) { alert("เลือกรายการก่อน"); return; }
+        if (!sel.length) { toast.error("เลือกรายการก่อน"); return; }
         if (!confirm(`ลบ ${sel.length} โฟลเดอร์ถาวร?`)) return;
         status.textContent = "กำลังลบ...";
         try {

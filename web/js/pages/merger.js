@@ -1,5 +1,6 @@
 import { api, el, pickSingle } from "../api.js";
 import { icon } from "../ui/icons.js";
+import { toast } from "../ui/toast.js";
 
 let pairs = [];
 
@@ -34,7 +35,7 @@ export function render(main) {
   const checks = [];
   scanBtn.addEventListener("click", async () => {
     const path = src.value();
-    if (!path) { alert("เลือกโฟลเดอร์"); return; }
+    if (!path) { toast.error("เลือกโฟลเดอร์"); return; }
     listCard.style.display = "block";
     listCard.innerHTML = '<div class="empty">สแกน...</div>';
     checks.length = 0;
@@ -55,17 +56,20 @@ export function render(main) {
 
   mergeBtn.addEventListener("click", async () => {
     const selected = checks.filter(c => c.cb.checked).map(c => c.pair);
-    if (selected.length < 2) { alert("เลือกอย่างน้อย 2 addon"); return; }
+    if (selected.length < 2) { toast.error("เลือกอย่างน้อย 2 addon"); return; }
     mergeBtn.disabled = true;
     logBox.style.display = "block";
     logBox.textContent = "กำลังรวม...";
+    const t = toast.progress("กำลังรวม addon...");
     try {
       const r = await api.post("/api/merger/merge", { pairs: selected, merged_name: nameInput.value.trim() || "MergedSkins" });
       logBox.innerHTML = "";
       logBox.append(el("span", { class: "log-ok" }, (r.log || []).join("\n")));
       logBox.append(el("span", {}, `\n\n📁 ${r.merged_path}\n📊 รวม ${r.total_files} ไฟล์`));
+      t.success(`รวมสำเร็จ (${r.total_files} ไฟล์)`);
     } catch (e) {
       logBox.innerHTML = ""; logBox.append(el("span", { class: "log-err" }, "❌ " + e.message));
+      t.error("รวมไม่สำเร็จ: " + e.message);
     } finally { mergeBtn.disabled = false; }
   });
 }
@@ -75,7 +79,7 @@ function pathPicker(placeholder) {
   const btn = el("button", { class: "btn-ghost btn-sm" }, "เลือก");
   btn.addEventListener("click", async () => {
     try { const p = await pickSingle({ mode: "folder" }); if (p) input.value = p; }
-    catch (e) { if (e.status === 501) input.focus(); else alert("เลือกไม่ได้: " + e.message); }
+    catch (e) { if (e.status === 501) input.focus(); else toast.error("เลือกไม่ได้: " + e.message); }
   });
   return { node: el("div", { class: "file-pick" }, input, btn), value: () => input.value.trim() };
 }

@@ -3,6 +3,7 @@
 // save writes ONLY the changed value spans (formatting/comments preserved).
 import { api, el, pickSingle } from "../api.js";
 import { icon } from "../ui/icons.js";
+import { activeProjectOpenPath } from "../state/activeProject.js";
 
 let bpPath = "";
 let scripts = [];
@@ -198,9 +199,11 @@ export async function render(main, params) {
   }
 
   // มาจากหน้าอื่น (#/scriptlab?open=<path>) → เปิดให้เลย
+  // ไม่งั้นถ้ามีโปรเจกต์ปักหมุดอยู่ ใช้พาธของมันแทนอัตโนมัติ (ไม่ต้องเลือกซ้ำ)
   const openParam = params && params.get("open");
-  if (openParam) {
-    srcInput.value = openParam;
+  const autoPath = openParam || activeProjectOpenPath();
+  if (autoPath) {
+    srcInput.value = autoPath;
     doOpen();
   }
 }

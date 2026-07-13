@@ -1,5 +1,6 @@
 import { api, el, pickSingle, renderValidation } from "../api.js";
 import { icon } from "../ui/icons.js";
+import { toast } from "../ui/toast.js";
 
 const SLOTS = [
   ["1", "หมวก (Head)"], ["2", "เสื้อเกราะ (Chest)"], ["3", "กางเกง (Legs)"],
@@ -48,15 +49,76 @@ export function render(main) {
   // ── Skins ──
   const skinsCard = el("div", { class: "card" });
   const skinsList = el("div", {});
-  const addBtn = el("button", { class: "btn-ghost btn-sm" }, "+ เพิ่มสกิน");
+  const addBtn = el("button", { class: "btn-ghost btn-sm" }, "+ เพิ่มสกินเปล่า");
+  
+  const dropzone = el("div", { class: "mg-dropzone", style: "margin-bottom:14px;" },
+    el("div", { class: "mg-dropzone-inner" },
+      icon("palette", { size: 26 }),
+      el("span", {}, "ลากไฟล์สกิน (.png) มาวางที่นี่เพื่อนำเข้าสกิน"),
+      el("small", {}, "หรือคลิกเพื่อเลือกไฟล์สกิน")
+    )
+  );
+
   skinsCard.append(
     el("div", { class: "card-title" }, "สกิน"),
+    dropzone,
     skinsList,
     addBtn,
   );
   main.append(skinsCard);
+
   addBtn.addEventListener("click", () => skinsList.append(makeSkinRow()));
   skinsList.append(makeSkinRow());
+
+  // Click on dropzone to choose file
+  dropzone.addEventListener("click", async () => {
+    try {
+      const p = await pickSingle({ mode: "open_file", filters: ["Images (*.png)"] });
+      if (p) {
+        const existingRows = Array.from(skinsList.children);
+        if (existingRows.length === 1) {
+          const firstRow = existingRows[0];
+          if (firstRow._collect && !firstRow._collect()) {
+            firstRow.remove();
+          }
+        }
+        skinsList.append(makeSkinRow(p));
+      }
+    } catch (e) {
+      toast.error("เลือกไฟล์สกินไม่ได้: " + e.message);
+    }
+  });
+
+  const setupDragDrop = (element) => {
+    element.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropzone.classList.add("dragover");
+    });
+    element.addEventListener("dragleave", () => {
+      dropzone.classList.remove("dragover");
+    });
+    element.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dropzone.classList.remove("dragover");
+      const files = Array.from(e.dataTransfer.files).filter(f => f.path && f.path.toLowerCase().endsWith(".png"));
+      if (files.length > 0) {
+        const existingRows = Array.from(skinsList.children);
+        if (existingRows.length === 1) {
+          const firstRow = existingRows[0];
+          if (firstRow._collect && !firstRow._collect()) {
+            firstRow.remove();
+          }
+        }
+        for (const file of files) {
+          skinsList.append(makeSkinRow(file.path));
+        }
+        toast.success(`เพิ่มสกินสำเร็จ ${files.length} รายการ`);
+      }
+    });
+  };
+
+  setupDragDrop(dropzone);
+  setupDragDrop(skinsCard);
 
   // ── Build ──
   const buildBtn = el("button", { class: "btn-primary" }, icon("wrench", { size: 15 }), " สร้าง Add-on");
@@ -69,7 +131,7 @@ export function render(main) {
 
   buildBtn.addEventListener("click", async () => {
     const skins = collectSkins();
-    if (!skins.length) { alert("ต้องมีอย่างน้อย 1 สกิน (เลือกไฟล์ PNG)"); return; }
+    if (!skins.length) { toast.error("ต้องมีอย่างน้อย 1 สกิน (เลือกไฟล์ PNG)"); return; }
     const body = {
       addon_name: nameInput.value.trim() || "MultiSkin",
       ui_mode: uiSelect.value,
@@ -81,6 +143,7 @@ export function render(main) {
     buildBtn.disabled = true;
     logBox.style.display = "block";
     logBox.textContent = "กำลังสร้าง...";
+    const t = toast.progress("กำลังสร้างสกิน...");
     try {
       const res = await api.post("/api/skin/build", body);
       const lines = (res.log || []).join("\n");
@@ -90,17 +153,19 @@ export function render(main) {
       logBox.append(el("span", {}, "📁 " + res.project_path + "\n\n🎮 Give:\n" + gives));
       const v = renderValidation(res.validation);
       if (v) logBox.append(v);
+      t.success("สร้างสกินสำเร็จ");
     } catch (e) {
       logBox.innerHTML = "";
       logBox.append(el("span", { class: "log-err" }, "❌ " + e.message));
+      t.error("สร้างสกินไม่สำเร็จ: " + e.message);
     } finally {
       buildBtn.disabled = false;
     }
   });
 }
 
-function makeSkinRow() {
-  const skinPath = filePicker("ไฟล์ Skin (.png)", ["Images (*.png)"]);
+function makeSkinRow(initialSkinPath = "") {
+  const skinPath = filePicker("ไฟล์ Skin (.png)", ["Images (*.png)"], initialSkinPath);
   const modelPath = filePicker("Model (.geo.json) — ว่าง = ต้นแบบ", ["JSON (*.json)"]);
   const animPath = filePicker("Animation (.json) — ว่าง = ข้าม", ["JSON (*.json)"]);
   const nameInput = el("input", { type: "text", placeholder: "ว่าง = ชื่อไฟล์" });
@@ -109,14 +174,19 @@ function makeSkinRow() {
   const previewBtn = el("button", { class: "btn-ghost btn-sm" }, "ดู icon");
   const removeBtn = el("button", { class: "btn-ghost btn-sm" }, "ลบ");
 
+  if (initialSkinPath) {
+    const filename = initialSkinPath.split(/[\\/]/).pop().replace(/\.png$/i, "");
+    nameInput.value = filename;
+  }
+
   previewBtn.addEventListener("click", async () => {
     const p = skinPath.value();
-    if (!p) { alert("เลือกไฟล์สกินก่อน"); return; }
+    if (!p) { toast.error("เลือกไฟล์สกินก่อน"); return; }
     try {
       const r = await api.post("/api/skin/preview-icon", { skin_path: p });
       preview.src = "data:image/png;base64," + r.icon_base64;
       preview.style.display = "inline-block";
-    } catch (e) { alert("preview ไม่ได้: " + e.message); }
+    } catch (e) { toast.error("preview ไม่ได้: " + e.message); }
   });
 
   const row = el("div", { class: "card", style: "background:#2b2d31" },
@@ -157,9 +227,12 @@ function collectSkins() {
 }
 
 // A text input + native picker button. Returns {node, value()}.
-function filePicker(placeholder, filters) {
-  const input = el("input", { type: "text", placeholder });
+function filePicker(placeholder, filters, initialValue = "") {
+  const input = el("input", { type: "text", placeholder, value: initialValue });
   const btn = el("button", { class: "btn-ghost btn-sm" }, "เลือก");
+  if (initialValue) {
+    input.value = initialValue;
+  }
   
   const getParentDir = (filePath) => {
     if (!filePath) return "";
@@ -174,9 +247,44 @@ function filePicker(placeholder, filters) {
       if (p) input.value = p;
     } catch (e) {
       if (e.status === 501) input.focus();   // browser dev mode: type path manually
-      else alert("เลือกไฟล์ไม่ได้: " + e.message);
+      else toast.error("เลือกไฟล์ไม่ได้: " + e.message);
     }
   });
   const node = el("div", { class: "file-pick" }, input, btn);
+
+  node.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    node.classList.add("dragover");
+  });
+  node.addEventListener("dragleave", () => {
+    node.classList.remove("dragover");
+  });
+  node.addEventListener("drop", (e) => {
+    e.preventDefault();
+    node.classList.remove("dragover");
+    const file = e.dataTransfer.files[0];
+    if (file && file.path) {
+      const pathLower = file.path.toLowerCase();
+      let isValid = true;
+      if (filters && filters.length > 0) {
+        const allowedExts = [];
+        for (const f of filters) {
+          for (const m of String(f).matchAll(/\*(\.[A-Za-z0-9]+)/g)) {
+            allowedExts.push(m[1].toLowerCase());
+          }
+        }
+        if (allowedExts.length > 0) {
+          isValid = allowedExts.some(ext => pathLower.endsWith(ext));
+        }
+      }
+      if (isValid) {
+        input.value = file.path;
+        input.dispatchEvent(new Event("change"));
+      } else {
+        toast.error(`ไฟล์ไม่ตรงกับประเภทที่กำหนดสำหรับช่องนี้`);
+      }
+    }
+  });
+
   return { node, value: () => input.value.trim() };
 }

@@ -1,6 +1,8 @@
 import { api, el, pickSingle, getApiBase } from "../api.js";
 import { icon } from "../ui/icons.js";
 import { showContextMenu, gotoPage } from "../ui/contextmenu.js";
+import { setActiveProject, getActiveProject, clearActiveProject } from "../state/activeProject.js";
+import { toast } from "../ui/toast.js";
 import { addPacksToWorldDialog } from "../ui/worldpicker.js";
 
 let allProjects = [];
@@ -42,7 +44,7 @@ export async function render(main, params) {
     count.textContent = `${items.length} / ${allProjects.length} โปรเจกต์`;
     grid.innerHTML = "";
     if (!items.length) { grid.append(el("div", { class: "empty" }, "ไม่พบโปรเจกต์")); return; }
-    for (const p of items.slice(0, 600)) grid.append(card(p, reload));
+    for (const p of items.slice(0, 600)) grid.append(card(p, reload, zone));
   };
 
   const reload = async () => {
@@ -89,7 +91,7 @@ function fmtSize(b) {
   return (b / 1073741824).toFixed(2) + " GB";
 }
 
-function card(p, reload) {
+function card(p, reload, zone) {
   const paths = p.paths || {};
   const bp = paths.bp || null, rp = paths.rp || null;
 
@@ -171,11 +173,24 @@ function card(p, reload) {
       openBtn, packBtn, deployBtn, renameBtn, dupBtn, delBtn),
     status,
   );
+  // ปักหมุด: ทุกเครื่องมือ (Script Lab/checker/weapon/physics/deploy) เติม path
+  // ของโปรเจกต์นี้ให้เองแทนที่จะต้องเลือกซ้ำทุกหน้า
+  const isPinned = () => (getActiveProject() || {}).name === p.name && (getActiveProject() || {}).store === p.store;
+  const pinProject = () => {
+    setActiveProject({ name: p.name, zone: zone || "", store: p.store, paths });
+    toast.success(`ปักหมุด "${p.name}" แล้ว — Script Lab/ตรวจสอบ/ฟิสิกส์/อาวุธ จะเติม path ให้อัตโนมัติ`);
+  };
+
   // คลิกขวา → เมนู "ส่งไปที่..." โยงเครื่องมืออื่น
   cardEl.addEventListener("contextmenu", (e) => {
     e.preventDefault();
     const src = bp || paths.folder || paths.mcaddon || rp;
     showContextMenu(e.clientX, e.clientY, [
+      isPinned()
+        ? { label: "เลิกปักหมุดโปรเจกต์นี้", icon: "close",
+            onClick: () => { clearActiveProject(); toast.info("เลิกปักหมุดแล้ว"); } }
+        : { label: "ปักหมุดเป็นโปรเจกต์ที่ทำอยู่", icon: "folder", onClick: pinProject },
+      "-",
       src ? { label: "เปิดใน Script Lab", icon: "sliders",
         onClick: () => gotoPage("scriptlab?open=" + encodeURIComponent(src)) } : null,
       src ? { label: "ตรวจสอบ Addon", icon: "check-circle",

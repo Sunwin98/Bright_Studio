@@ -207,13 +207,69 @@ def export(body: ExportBody):
         geo_path = out_dir / f"{slug}.geo.json"
         write_geo(geo, geo_path)
 
+        # inventory icon = Meshy's rendered thumbnail (used when turning into an item)
+        icon_out = None
+        thumb = task.get("thumbnail_url")
+        if thumb:
+            try:
+                icon_out = out_dir / f"{slug}_icon.png"
+                meshy.download(thumb, icon_out)
+            except Exception:
+                icon_out = None
+
         return {
             "ok": True,
             "geo_path": str(geo_path),
             "texture_path": str(tex_out) if tex_out else None,
+            "icon_path": str(icon_out) if icon_out else None,
             "identifier": f"geometry.{slug}",
+            "slug": slug,
             "output_dir": str(out_dir),
             "polys": len(geo["minecraft:geometry"][0]["bones"][0]["poly_mesh"]["polys"]),
         }
+
+    return _run(do)
+
+
+class MakeItemBody(BaseModel):
+    geo_path: str
+    texture_path: str | None = None
+    icon_path: str | None = None
+    namespace: str = "ai"
+    item_name: str
+    display_name: str = ""
+    addon_name: str = ""
+    bp_path: str | None = None
+    rp_path: str | None = None
+    output_dir: str | None = None
+    menu_category: str = "equipment"
+
+
+@router.post("/make-item")
+def make_item(body: MakeItemBody):
+    """Turn an exported AI model (geo.json + texture) into a ready-to-use held
+    item: BP item + RP attachable + geometry wired + give command."""
+    from app.core.weapon import item_builder
+
+    tex = body.texture_path
+    if not tex or not Path(tex).is_file():
+        raise HTTPException(status_code=422,
+                            detail="โมเดลนี้ไม่มี texture — ทำเป็นไอเทมไม่ได้ (ลองสร้างใหม่แบบมีเท็กซ์เจอร์)")
+    icon = body.icon_path if (body.icon_path and Path(body.icon_path).is_file()) else tex
+
+    req = {
+        "model_path": body.geo_path,
+        "model_texture_path": tex,
+        "icon_path": icon,
+        "namespace": body.namespace,
+        "item_name": body.item_name,
+        "display_name": body.display_name or body.item_name,
+        "addon_name": body.addon_name or body.item_name,
+        "bp_path": body.bp_path or None,
+        "rp_path": body.rp_path or None,
+        "output_dir": body.output_dir or None,
+        "menu_category": body.menu_category,
+    }
+    return _run(lambda: item_builder.build_item(req))
 
     return _run(do)

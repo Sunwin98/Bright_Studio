@@ -5,6 +5,7 @@
 import { api, el } from "../api.js";
 import { openWindow } from "./window.js";
 import { icon } from "./icons.js";
+import { toast } from "./toast.js";
 
 function fmtDate(mtime) {
   if (!mtime) return "";
@@ -66,8 +67,8 @@ export async function addPacksToWorldDialog(packs) {
             }
             ctl.close();
             const names = packs.map((p) => p.name).join(", ");
-            alert(`✅ เพิ่ม ${names} เข้าโลก "${w.name}" แล้ว`);
-          } catch (e) { alert("เพิ่มไม่ได้: " + e.message); row.style.opacity = "1"; }
+            toast.success(`เพิ่ม ${names} เข้าโลก "${w.name}" แล้ว`);
+          } catch (e) { toast.error("เพิ่มไม่ได้: " + e.message); row.style.opacity = "1"; }
         });
         list.append(row);
       }

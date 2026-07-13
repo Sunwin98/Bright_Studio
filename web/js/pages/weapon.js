@@ -1,5 +1,7 @@
 import { api, el, pickSingle, renderValidation } from "../api.js";
 import { icon } from "../ui/icons.js";
+import { toast } from "../ui/toast.js";
+import { activeProjectOpenPath } from "../state/activeProject.js";
 
 let selectedSourcePath = "";
 
@@ -103,7 +105,7 @@ export function render(main) {
       }
     } catch (e) {
       loadingText.style.display = "none";
-      alert("ตรวจสอบแอดออนล้มเหลว: " + e.message);
+      toast.error("ตรวจสอบแอดออนล้มเหลว: " + e.message);
     }
   };
 
@@ -112,7 +114,7 @@ export function render(main) {
       const p = await pickSingle({ mode: "folder" });
       if (p) handleInspect(p);
     } catch (e) {
-      alert("เลือกโฟลเดอร์ไม่ได้: " + e.message);
+      toast.error("เลือกโฟลเดอร์ไม่ได้: " + e.message);
     }
   });
 
@@ -121,18 +123,21 @@ export function render(main) {
       const p = await pickSingle({ mode: "open_file", filters: ["Addon (*.mcaddon)", "Pack (*.mcpack)", "Archive (*.zip)"] });
       if (p) handleInspect(p);
     } catch (e) {
-      alert("เลือกไฟล์ไม่ได้: " + e.message);
+      toast.error("เลือกไฟล์ไม่ได้: " + e.message);
     }
   });
 
-  // Restore path display if previously selected
+  // Restore path display if previously selected — ไม่งั้นใช้โปรเจกต์ที่ปักหมุดไว้
   if (selectedSourcePath) {
     handleInspect(selectedSourcePath);
+  } else {
+    const ap = activeProjectOpenPath();
+    if (ap) handleInspect(ap);
   }
 
   genBtn.addEventListener("click", async () => {
     const items = itemPickers.map(p => p.value()).filter(Boolean);
-    if (!items.length) { alert("เลือกไฟล์ไอเทม JSON อย่างน้อย 1 ชิ้น"); return; }
+    if (!items.length) { toast.error("เลือกไฟล์ไอเทม JSON อย่างน้อย 1 ชิ้น"); return; }
     const entity_opts = {};
     for (const k in opts) entity_opts[k] = opts[k].checked;
     const body = {
@@ -143,15 +148,18 @@ export function render(main) {
     genBtn.disabled = true;
     logBox.style.display = "block";
     logBox.textContent = "กำลังสร้าง...";
+    const t = toast.progress("กำลังสร้างอาวุธ/สกิล...");
     try {
       const res = await api.post("/api/weapon/generate", body);
       logBox.innerHTML = "";
       logBox.append(el("span", { class: "log-ok" }, (res.log || []).join("\n")));
       const v = renderValidation(res.validation);
       if (v) logBox.append(v);
+      t.success("สร้างสำเร็จ");
     } catch (e) {
       logBox.innerHTML = "";
       logBox.append(el("span", { class: "log-err" }, "❌ " + e.message));
+      t.error("สร้างไม่สำเร็จ: " + e.message);
     } finally {
       genBtn.disabled = false;
     }
@@ -175,7 +183,7 @@ function pathPicker(placeholder, filters, isFile) {
       if (p) input.value = p;
     } catch (e) {
       if (e.status === 501) input.focus();
-      else alert("เลือกไม่ได้: " + e.message);
+      else toast.error("เลือกไม่ได้: " + e.message);
     }
   });
   return { node: el("div", { class: "file-pick" }, input, btn), value: () => input.value.trim(), input };

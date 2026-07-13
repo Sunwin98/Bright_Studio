@@ -1,5 +1,7 @@
 import { api, el, pickSingle } from "../api.js";
 import { icon } from "../ui/icons.js";
+import { toast } from "../ui/toast.js";
+import { activeProjectOpenPath } from "../state/activeProject.js";
 
 let tools = [];
 let lastFocusedTextarea = null;
@@ -44,8 +46,17 @@ function renderIntake(card, main) {
     el("span", { class: "spinner-inline" }, "กำลังแกะกล่องและตรวจสอบโครงสร้างแอดออน...")
   );
 
+  const dropzone = el("div", { class: "mg-dropzone", style: "margin-bottom: 12px;" },
+    el("div", { class: "mg-dropzone-inner" },
+      icon("archive", { size: 26 }),
+      el("span", {}, selectedSourcePath ? "แอดออนที่เลือก: " + selectedSourcePath.split(/[\\/]/).pop() : "ลากไฟล์ .mcaddon / .zip หรือโฟลเดอร์มาวางที่นี่"),
+      el("small", {}, "หรือคลิกที่นี่เพื่อเลือกไฟล์แอดออน")
+    )
+  );
+
   card.append(
     el("div", { class: "field" },
+      dropzone,
       el("div", { class: "row", style: "gap:10px;margin-bottom:10px;" },
         pickFolderBtn,
         pickFileBtn
@@ -64,6 +75,10 @@ function renderIntake(card, main) {
     if (!path) return;
     selectedSourcePath = path;
     pathDisplay.textContent = path;
+    const nameSpan = dropzone.querySelector("span");
+    if (nameSpan) {
+      nameSpan.textContent = "แอดออนที่เลือก: " + path.split(/[\\/]/).pop();
+    }
     loadingText.style.display = "block";
     mainContainer.style.display = "none";
     mainContainer.innerHTML = "";
@@ -90,12 +105,39 @@ function renderIntake(card, main) {
     }
   };
 
+  dropzone.addEventListener("click", async () => {
+    try {
+      const p = await pickSingle({ mode: "open_file", filters: ["Addon (*.mcaddon)", "Pack (*.mcpack)", "Archive (*.zip)"] });
+      if (p) handleInspect(p);
+    } catch (e) {
+      toast.error("เลือกไฟล์ไม่ได้: " + e.message);
+    }
+  });
+
+  dropzone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    dropzone.classList.add("dragover");
+  });
+
+  dropzone.addEventListener("dragleave", () => {
+    dropzone.classList.remove("dragover");
+  });
+
+  dropzone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropzone.classList.remove("dragover");
+    const file = e.dataTransfer.files[0];
+    if (file && file.path) {
+      handleInspect(file.path);
+    }
+  });
+
   pickFolderBtn.addEventListener("click", async () => {
     try {
       const p = await pickSingle({ mode: "folder" });
       if (p) handleInspect(p);
     } catch (e) {
-      alert("เลือกโฟลเดอร์ไม่ได้: " + e.message);
+      toast.error("เลือกโฟลเดอร์ไม่ได้: " + e.message);
     }
   });
 
@@ -104,13 +146,16 @@ function renderIntake(card, main) {
       const p = await pickSingle({ mode: "open_file", filters: ["Addon (*.mcaddon)", "Pack (*.mcpack)", "Archive (*.zip)"] });
       if (p) handleInspect(p);
     } catch (e) {
-      alert("เลือกไฟล์ไม่ได้: " + e.message);
+      toast.error("เลือกไฟล์ไม่ได้: " + e.message);
     }
   });
 
-  // Restore state if source already selected
+  // Restore state if source already selected — ไม่งั้นใช้โปรเจกต์ที่ปักหมุดไว้
   if (selectedSourcePath) {
     handleInspect(selectedSourcePath);
+  } else {
+    const ap = activeProjectOpenPath();
+    if (ap) handleInspect(ap);
   }
 }
 
@@ -253,7 +298,7 @@ function renderAttachableWorkspace(workspace, att) {
             area.dispatchEvent(new Event("input"));
           }
         } else {
-          alert("กรุณาคลิกเลือกช่องกรอกกระดูก (Textarea) ของกลุ่มที่ต้องการเพิ่มก่อน แล้วค่อยคลิกเลือกกระดูกครับ");
+          toast.info("กรุณาคลิกเลือกช่องกรอกกระดูก (Textarea) ของกลุ่มที่ต้องการเพิ่มก่อน แล้วค่อยคลิกเลือกกระดูกครับ");
         }
       });
 
@@ -422,15 +467,18 @@ function renderAttachableWorkspace(workspace, att) {
     applyBtn.disabled = true;
     logBox.style.display = "block";
     logBox.textContent = "⚙️ กำลังทำการคำนวณและเขียนไฟล์แอดออน...";
+    const t = toast.progress("กำลังใส่ฟิสิกส์...");
 
     try {
       const res = await api.post("/api/physics/apply", body);
       logBox.innerHTML = "";
       logBox.append(el("span", { class: "log-ok" }, "✅ ติดตั้งฟิสิกส์อัจฉริยะเสร็จสมบูรณ์เรียบร้อยแล้ว!\n\n" + (res.log || []).join("\n")));
       logBox.append(el("span", {}, "\n\n💾 ไฟล์สำรองดั้งเดิมเขียนไว้ที่:\n" + (res.backups || []).join("\n")));
+      t.success("ใส่ฟิสิกส์สำเร็จ");
     } catch (e) {
       logBox.innerHTML = "";
       logBox.append(el("span", { class: "log-err" }, "❌ ผิดพลาด: " + e.message));
+      t.error("ใส่ฟิสิกส์ไม่สำเร็จ: " + e.message);
     } finally {
       applyBtn.disabled = false;
     }
