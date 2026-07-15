@@ -29,6 +29,18 @@ export async function render(main, params) {
   const importBtn = el("button", { class: "btn-ghost btn-sm" }, icon("upload", { size: 15 }), " Import .mcaddon");
   const count = el("span", { class: "count-pill" }, "");
   main.append(el("div", { class: "toolbar" }, search, storeFilter, importBtn, count));
+  const selectAll = el("input", { type: "checkbox", class: "project-select-all", "aria-label": "เลือกโปรเจกต์ที่แสดงทั้งหมด", disabled: "" });
+  const selectedCount = el("span", { class: "bulk-selection-count" }, "ยังไม่ได้เลือก");
+  const clearSelectionBtn = el("button", { class: "btn-ghost btn-sm", type: "button", disabled: "" }, "ล้างที่เลือก");
+  const bulkDeleteBtn = el("button", { class: "btn-danger btn-sm", type: "button", disabled: "" }, icon("trash", { size: 14 }), " ลบที่เลือก");
+  const selectionBar = el("div", { class: "bulk-toolbar" },
+    el("label", { class: "bulk-select-all" }, selectAll, "เลือกทั้งหมด"),
+    selectedCount,
+    el("div", { class: "bulk-toolbar-spacer" }),
+    clearSelectionBtn,
+    bulkDeleteBtn,
+  );
+  main.append(selectionBar);
   const importStatus = el("div", { class: "field-hint", style: "margin:-10px 0 12px" }, "");
   main.append(importStatus);
 
@@ -36,22 +48,80 @@ export async function render(main, params) {
   main.append(grid);
   grid.innerHTML = '<div class="empty">กำลังโหลด...</div>';
 
+  const selectedKeys = new Set();
+  let visibleItems = [];
+  const projectKey = (p) => p.open_path || `${p.store}:${p.name}`;
+
+  const updateSelectionUI = () => {
+    const visibleSelected = visibleItems.filter(p => selectedKeys.has(projectKey(p))).length;
+    selectAll.checked = visibleItems.length > 0 && visibleSelected === visibleItems.length;
+    selectAll.indeterminate = visibleSelected > 0 && visibleSelected < visibleItems.length;
+    selectAll.disabled = visibleItems.length === 0;
+    selectedCount.textContent = selectedKeys.size ? `เลือกแล้ว ${selectedKeys.size} โปรเจกต์` : "ยังไม่ได้เลือก";
+    clearSelectionBtn.disabled = selectedKeys.size === 0;
+    bulkDeleteBtn.disabled = selectedKeys.size === 0;
+    selectionBar.classList.toggle("has-selection", selectedKeys.size > 0);
+  };
+
+  const clearSelection = () => {
+    selectedKeys.clear();
+    updateSelectionUI();
+    draw();
+  };
+
   const draw = () => {
     const q = search.value.trim().toLowerCase();
     const store = storeFilter.value;
     const items = allProjects.filter(p =>
       (!q || p.name.toLowerCase().includes(q)) && (!store || p.store === store));
+    visibleItems = items.slice(0, 600);
     count.textContent = `${items.length} / ${allProjects.length} โปรเจกต์`;
     grid.innerHTML = "";
-    if (!items.length) { grid.append(el("div", { class: "empty" }, "ไม่พบโปรเจกต์")); return; }
-    for (const p of items.slice(0, 600)) grid.append(card(p, reload, zone));
+    if (!items.length) {
+      grid.append(el("div", { class: "empty" }, "ไม่พบโปรเจกต์"));
+      updateSelectionUI();
+      return;
+    }
+    for (const p of visibleItems) grid.append(card(p, reload, zone, selectedKeys, updateSelectionUI));
+    updateSelectionUI();
   };
 
   const reload = async () => {
+    selectedKeys.clear();
     const data = await api.get(projUrl);
     allProjects = data.projects || [];
     draw();
   };
+
+  selectAll.addEventListener("change", () => {
+    for (const p of visibleItems) {
+      const key = projectKey(p);
+      if (selectAll.checked) selectedKeys.add(key);
+      else selectedKeys.delete(key);
+    }
+    draw();
+  });
+  clearSelectionBtn.addEventListener("click", clearSelection);
+  bulkDeleteBtn.addEventListener("click", async () => {
+    const selectedProjects = allProjects.filter(p => selectedKeys.has(projectKey(p)));
+    if (!selectedProjects.length) { clearSelection(); return; }
+
+    const paths = [...new Set(selectedProjects.flatMap(p => Object.values(p.paths || {}).filter(Boolean)))];
+    const names = selectedProjects.length <= 3
+      ? selectedProjects.map(p => `“${p.name}”`).join(", ")
+      : `${selectedProjects.length} โปรเจกต์`;
+    if (!confirm(`ลบ ${names} ถาวร?\nไฟล์และโฟลเดอร์ของรายการที่เลือกจะถูกลบ`)) return;
+
+    bulkDeleteBtn.disabled = true;
+    try {
+      const result = await api.post("/api/projects/delete", { paths });
+      toast.success(`ลบแล้ว ${selectedProjects.length} โปรเจกต์ (${result.removed.length} รายการ)`);
+      await reload();
+    } catch (e) {
+      toast.error("ลบไม่สำเร็จ: " + e.message);
+      updateSelectionUI();
+    }
+  });
 
   search.addEventListener("input", draw);
   storeFilter.addEventListener("change", draw);
@@ -81,6 +151,7 @@ export async function render(main, params) {
     draw();
   } catch (e) {
     grid.innerHTML = `<div class="empty">โหลดโปรเจกต์ไม่ได้: ${e.message}</div>`;
+    updateSelectionUI();
   }
 }
 
@@ -91,9 +162,10 @@ function fmtSize(b) {
   return (b / 1073741824).toFixed(2) + " GB";
 }
 
-function card(p, reload, zone) {
+function card(p, reload, zone, selectedKeys, updateSelectionUI) {
   const paths = p.paths || {};
   const bp = paths.bp || null, rp = paths.rp || null;
+  const key = p.open_path || `${p.store}:${p.name}`;
 
   const thumb = el("div", { style: "width:40px;height:40px;border-radius:8px;background:#1e1f22;flex:none;overflow:hidden" });
   if (p.has_icon) {
@@ -162,12 +234,23 @@ function card(p, reload, zone) {
     catch (e) { status.textContent = "❌ " + e.message; }
   });
 
+  const select = el("input", { type: "checkbox", class: "proj-select", "aria-label": `เลือกโปรเจกต์ ${p.name}` });
+  select.checked = selectedKeys.has(key);
+  select.addEventListener("click", (e) => e.stopPropagation());
+  select.addEventListener("change", () => {
+    if (select.checked) selectedKeys.add(key);
+    else selectedKeys.delete(key);
+    updateSelectionUI();
+  });
+
   const cardEl = el("div", { class: "proj-card", style: "cursor:default" },
-    el("div", { class: "row", style: "gap:10px;align-items:center" }, thumb,
+    el("div", { class: "proj-card-head" },
+      el("label", { class: "proj-select-wrap", title: `เลือก ${p.name}` }, select),
+      el("div", { class: "row", style: "gap:10px;align-items:center;flex:1;min-width:0" }, thumb,
       el("div", { style: "flex:1;min-width:0" },
         el("div", { class: "proj-name" }, p.name),
         el("div", { class: "proj-store" }, p.store, " · ", sizePill),
-      )),
+      ))),
     el("div", { style: "margin-top:8px" }, badges),
     el("div", { class: "row", style: "gap:4px;margin-top:10px;flex-wrap:wrap" },
       openBtn, packBtn, deployBtn, renameBtn, dupBtn, delBtn),
@@ -193,8 +276,14 @@ function card(p, reload, zone) {
       "-",
       src ? { label: "เปิดใน Script Lab", icon: "sliders",
         onClick: () => gotoPage("scriptlab?open=" + encodeURIComponent(src)) } : null,
+      (bp || paths.folder) ? { label: "เปิดใน Script Builder", icon: "puzzle",
+        onClick: () => gotoPage("scriptbuilder?open=" + encodeURIComponent(bp || paths.folder)) } : null,
       src ? { label: "ตรวจสอบ Addon", icon: "check-circle",
         onClick: () => gotoPage("checker?open=" + encodeURIComponent(src)) } : null,
+      src ? { label: "ประวัติไฟล์", icon: "archive",
+        onClick: () => gotoPage("history?open=" + encodeURIComponent(paths.folder || bp || rp || paths.mcaddon || src)) } : null,
+      src ? { label: "ดู Asset", icon: "image",
+        onClick: () => gotoPage("assets?open=" + encodeURIComponent(src)) } : null,
       (bp || rp) ? { label: "Deploy เข้า com.mojang", icon: "rocket",
         onClick: () => deployBtn.click() } : null,
       (bp || rp) ? { label: "Deploy + เพิ่มเข้าโลก…", icon: "rocket",

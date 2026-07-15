@@ -1,4 +1,4 @@
-import { api, el, pickSingle, renderValidation } from "../api.js";
+import { api, el, pickSingle, renderValidation, resolveDroppedFile } from "../api.js";
 import { icon as uiIcon } from "../ui/icons.js";
 import { toast } from "../ui/toast.js";
 
@@ -10,7 +10,7 @@ export function render(main) {
   ));
 
   const addonName = el("input", { type: "text", placeholder: "เช่น Soen Sword" });
-  const outDir = pathPicker("ว่าง = Projects/ (ค่าเริ่มต้น)");
+  const outDir = compactDropzone("ว่าง = Projects/ (ค่าเริ่มต้น)", [], "", "folder");
   main.append(el("div", { class: "card" },
     el("div", { class: "card-title" }, "1. สร้างแอดออนใหม่"),
     el("div", { class: "field" }, el("label", {}, "ชื่อ Add-on *"), addonName),
@@ -31,10 +31,10 @@ export function render(main) {
     el("div", { class: "field-hint" }, "identifier = namespace:ชื่อไอเทม (a-z, 0-9, _)"),
   ));
 
-  const model = filePicker("โมเดล (.geo.json)", ["JSON (*.json)"]);
-  const mtex = filePicker("texture ของโมเดล (.png)", ["Images (*.png)"]);
-  const icon = filePicker("icon ในช่อง inventory (.png)", ["Images (*.png)"]);
-  const anim = filePicker("held animation (.json) — optional", ["JSON (*.json)"]);
+  const model = compactDropzone("ลากไฟล์โมเดล (.geo.json) มาวาง หรือคลิกเพื่อเลือก *", ["JSON (*.json)"]);
+  const mtex = compactDropzone("ลากไฟล์ Texture โมเดล (.png) มาวาง หรือคลิกเพื่อเลือก *", ["Images (*.png)"]);
+  const icon = compactDropzone("ลากไฟล์ Icon inventory (.png) มาวาง หรือคลิกเพื่อเลือก *", ["Images (*.png)"]);
+  const anim = compactDropzone("ลากไฟล์ Held animation (.json) มาวาง หรือคลิกเพื่อเลือก (optional)", ["JSON (*.json)"]);
   main.append(el("div", { class: "card" },
     el("div", { class: "card-title" }, "3. โมเดล & เท็กซ์เจอร์"),
     el("div", { class: "field" }, el("label", {}, "โมเดล (.geo.json) * — geometry id อ่านอัตโนมัติ"), model.node),
@@ -44,13 +44,13 @@ export function render(main) {
   ));
 
   const dmg = el("input", { type: "number", step: "1", placeholder: "เช่น 20 (ว่าง = ไม่ใส่)" });
+  const cd = el("input", { type: "number", step: "0.1", placeholder: "วินาที เช่น 0.5 (ว่าง = ไม่ใส่)" });
+  const cat = el("select", {}, ...["equipment", "items", "nature", "construction", "none"].map(c => el("option", { value: c }, c)));
   const enchSlot = el("select", {},
     el("option", { value: "" }, "ไม่มี"),
     ...["sword", "axe", "pickaxe", "shovel", "bow", "crossbow", "trident", "all", "melee_weapon", "mining", "armor_feet", "armor_head"].map(s => el("option", { value: s }, s)),
   );
   const enchVal = el("input", { type: "number", step: "1", placeholder: "14" });
-  const cd = el("input", { type: "number", step: "0.1", placeholder: "วินาที เช่น 0.5 (ว่าง = ไม่ใส่)" });
-  const cat = el("select", {}, ...["equipment", "items", "nature", "construction", "none"].map(c => el("option", { value: c }, c)));
   main.append(el("div", { class: "card" },
     el("div", { class: "card-title" }, "4. คุณสมบัติ (optional)"),
     el("div", { class: "row" },
@@ -107,44 +107,93 @@ export function render(main) {
   });
 }
 
-function filePicker(placeholder, filters) {
-  const input = el("input", { type: "text", placeholder });
-  const btn = el("button", { class: "btn-ghost btn-sm" }, "เลือก");
+function compactDropzone(placeholder, filters, initialValue = "", mode = "open_file") {
+  let value = initialValue;
   
+  const iconEl = el("span", { class: "cd-icon" }, uiIcon(mode === "folder" ? "folder" : "upload", { size: 14 }));
+  const labelEl = el("span", { class: "cd-label" }, value ? value.split(/[\\/]/).pop() : placeholder);
+  if (value) {
+    labelEl.style.color = "var(--text)";
+  }
+
+  const node = el("div", { class: "compact-dropzone" },
+    iconEl,
+    labelEl
+  );
+  node.title = value || placeholder;
+
+  const updateValue = (newVal) => {
+    value = newVal;
+    labelEl.textContent = value ? value.split(/[\\/]/).pop() : placeholder;
+    labelEl.style.color = value ? "var(--text)" : "";
+    node.title = value || placeholder;
+  };
+
   const getParentDir = (filePath) => {
     if (!filePath) return "";
     const lastSlash = Math.max(filePath.lastIndexOf("/"), filePath.lastIndexOf("\\"));
     return lastSlash !== -1 ? filePath.substring(0, lastSlash) : "";
   };
 
-  btn.addEventListener("click", async () => {
+  node.addEventListener("click", async () => {
     try {
-      const directory = getParentDir(input.value.trim());
-      const p = await pickSingle({ mode: "open_file", filters, directory });
-      if (p) input.value = p;
+      const directory = getParentDir(value);
+      const p = await pickSingle({ mode, filters: mode === "folder" ? undefined : filters, directory });
+      if (p) {
+        updateValue(p);
+        node.dispatchEvent(new Event("change"));
+      }
+    } catch (e) {
+      toast.error("เลือกโฟลเดอร์ไม่ได้: " + e.message);
     }
-    catch (e) { if (e.status === 501) input.focus(); else toast.error("เลือกไฟล์ไม่ได้: " + e.message); }
   });
-  return { node: el("div", { class: "file-pick" }, input, btn), value: () => input.value.trim() };
-}
 
-function pathPicker(placeholder) {
-  const input = el("input", { type: "text", placeholder });
-  const btn = el("button", { class: "btn-ghost btn-sm" }, "เลือก");
-  
-  const getParentDir = (filePath) => {
-    if (!filePath) return "";
-    const lastSlash = Math.max(filePath.lastIndexOf("/"), filePath.lastIndexOf("\\"));
-    return lastSlash !== -1 ? filePath.substring(0, lastSlash) : "";
+  node.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    node.classList.add("dragover");
+  });
+  node.addEventListener("dragleave", (e) => {
+    e.stopPropagation();
+    node.classList.remove("dragover");
+  });
+  node.addEventListener("drop", async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    node.classList.remove("dragover");
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      const fileName = file.path || file.name || "";
+      const pathLower = fileName.toLowerCase();
+      let isValid = true;
+      if (mode !== "folder" && filters && filters.length > 0) {
+        const allowedExts = [];
+        for (const f of filters) {
+          for (const m of String(f).matchAll(/\*(\.[A-Za-z0-9]+)/g)) {
+            allowedExts.push(m[1].toLowerCase());
+          }
+        }
+        if (allowedExts.length > 0) {
+          isValid = allowedExts.some(ext => pathLower.endsWith(ext));
+        }
+      }
+      if (isValid) {
+        try {
+          const localPath = await resolveDroppedFile(file);
+          updateValue(localPath);
+          node.dispatchEvent(new Event("change"));
+        } catch (err) {
+          toast.error(`นำเข้าไฟล์ล้มเหลว: ${err.message}`);
+        }
+      } else {
+        toast.error(`ไฟล์ไม่ตรงกับประเภทที่กำหนดสำหรับช่องนี้`);
+      }
+    }
+  });
+
+  return {
+    node,
+    value: () => value,
+    setValue: (v) => updateValue(v)
   };
-
-  btn.addEventListener("click", async () => {
-    try {
-      const directory = getParentDir(input.value.trim());
-      const p = await pickSingle({ mode: "folder", directory });
-      if (p) input.value = p;
-    }
-    catch (e) { if (e.status === 501) input.focus(); else toast.error("เลือกไม่ได้: " + e.message); }
-  });
-  return { node: el("div", { class: "file-pick" }, input, btn), value: () => input.value.trim() };
 }

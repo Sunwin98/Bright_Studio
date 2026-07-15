@@ -29,6 +29,7 @@ const ZONES = [
     { hash: "weapon",    label: "อาวุธ & สกิล",    icon: "swords" },
     { hash: "item",      label: "สร้างไอเทม/อาวุธ", icon: "dagger" },
     { hash: "scriptlab", label: "Script Lab",       icon: "sliders" },
+    { hash: "scriptbuilder", label: "Script Builder", icon: "puzzle" },
   ]},
   { label: "โซนโมเดล · モデル", tabs: [
     { hash: "modelgen",  label: "โมเดล AI",         icon: "cube" },
@@ -39,6 +40,8 @@ const ZONES = [
     { hash: "merger",    label: "รวม Addon",        icon: "puzzle" },
     { hash: "cleanup",   label: "ล้างขยะ",          icon: "broom" },
     { hash: "filemanager", label: "จัดการไฟล์",     icon: "folder-open" },
+    { hash: "history",   label: "ประวัติไฟล์",      icon: "archive" },
+    { hash: "assets",    label: "ดู Asset",         icon: "image" },
   ]},
   { label: "อื่นๆ · その他", tabs: [
     { hash: "knowledge", label: "คลังความรู้",     icon: "book" },

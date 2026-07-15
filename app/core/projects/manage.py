@@ -13,7 +13,10 @@ import config
 
 
 def _stores() -> list[Path]:
-    return [s.resolve() for s in config.PROJECT_STORES]
+    stores = list(config.PROJECT_STORES)
+    for zone_stores in getattr(config, "ZONE_STORES", {}).values():
+        stores.extend(zone_stores)
+    return [s.resolve() for s in stores]
 
 
 def _under_stores(p: Path) -> bool:

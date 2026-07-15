@@ -62,3 +62,31 @@ def open_dialog(req: DialogRequest):
         return {"paths": []}
     paths = list(result) if isinstance(result, (list, tuple)) else [result]
     return {"paths": [str(Path(p)) for p in paths]}
+
+
+from fastapi import UploadFile, File
+import shutil
+import tempfile
+
+@router.post("/dialog/upload")
+def upload_file(file: UploadFile = File(...)):
+    temp_dir = Path(tempfile.gettempdir()) / "bright_studio_uploads"
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    
+    file_path = temp_dir / file.filename
+    with file_path.open("wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+        
+    return {"path": str(file_path)}
+
+
+from fastapi.responses import FileResponse
+
+@router.get("/dialog/download")
+def download_file(path: str):
+    p = Path(path)
+    if not p.is_file():
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(p, filename=p.name)
+

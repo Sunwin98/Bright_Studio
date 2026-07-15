@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from app.core import packio
+from app.core import history
 from app.core.scriptlab import analyzer
 from app.core.scriptlab import sync as sl_sync
 from app.core.scriptlab.parser import apply_edits, read_source, write_source
@@ -78,12 +79,16 @@ def save(body: SaveBody):
         new_src = apply_edits(src, body.edits)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    history_snapshot = history.create_snapshot("แก้ไขค่าใน Script Lab", [p], source=str(p), status="กำลังแก้ไข")
+    history_id = history_snapshot["id"]
     shutil.copy2(p, p.with_suffix(p.suffix + ".bak"))
     try:
         write_source(p, new_src)
     except OSError as e:
+        history.update_snapshot(history_id, status="ล้มเหลว")
         raise HTTPException(status_code=500, detail=f"เขียนไฟล์ไม่ได้: {e}")
-    resp = {"ok": True, "mtime": p.stat().st_mtime, "backup": str(p) + ".bak"}
+    history.update_snapshot(history_id, changed=[str(p)], status="completed")
+    resp = {"ok": True, "mtime": p.stat().st_mtime, "backup": str(p) + ".bak", "history_id": history_id}
     # Hot-sync onto any deployed copy of this pack so /reload picks it up.
     try:
         resp.update(sl_sync.sync_to_dev(str(p)))

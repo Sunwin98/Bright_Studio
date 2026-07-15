@@ -1,4 +1,4 @@
-import { api, el, pickSingle } from "../api.js";
+import { api, el, pickSingle, resolveDroppedFile, getApiBase } from "../api.js";
 import { icon } from "../ui/icons.js";
 import { toast } from "../ui/toast.js";
 import { activeProjectOpenPath } from "../state/activeProject.js";
@@ -35,18 +35,11 @@ function renderIntake(card, main) {
   card.innerHTML = "";
   card.append(el("div", { class: "card-title" }, "นำเข้าไฟล์แอดออน / แหล่งข้อมูล"));
 
-  const pathDisplay = el("span", { style: "font-family:var(--font-mono);font-size:13px;color:var(--text-muted);word-break:break-all;" }, 
-    selectedSourcePath || "กรุณาเลือกไฟล์ .mcaddon หรือโฟลเดอร์แอดออนเพื่อเริ่มต้น"
-  );
-  
-  const pickFolderBtn = el("button", { class: "btn-ghost btn-sm" }, icon("folder", { size: 14 }), " เลือกโฟลเดอร์แอดออน");
-  const pickFileBtn = el("button", { class: "btn-ghost btn-sm" }, icon("puzzle", { size: 14 }), " เลือกไฟล์ .mcaddon / .zip");
-  
   const loadingText = el("div", { style: "display:none;margin-top:10px;color:var(--neon-cyan);" }, 
     el("span", { class: "spinner-inline" }, "กำลังแกะกล่องและตรวจสอบโครงสร้างแอดออน...")
   );
 
-  const dropzone = el("div", { class: "mg-dropzone", style: "margin-bottom: 12px;" },
+  const dropzone = el("div", { class: "mg-dropzone", style: "margin-bottom: 0px;" },
     el("div", { class: "mg-dropzone-inner" },
       icon("archive", { size: 26 }),
       el("span", {}, selectedSourcePath ? "แอดออนที่เลือก: " + selectedSourcePath.split(/[\\/]/).pop() : "ลากไฟล์ .mcaddon / .zip หรือโฟลเดอร์มาวางที่นี่"),
@@ -57,13 +50,6 @@ function renderIntake(card, main) {
   card.append(
     el("div", { class: "field" },
       dropzone,
-      el("div", { class: "row", style: "gap:10px;margin-bottom:10px;" },
-        pickFolderBtn,
-        pickFileBtn
-      ),
-      el("div", { style: "padding:10px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;display:flex;align-items:center;min-height:38px;" }, 
-        pathDisplay
-      ),
       loadingText
     )
   );
@@ -74,7 +60,6 @@ function renderIntake(card, main) {
   const handleInspect = async (path) => {
     if (!path) return;
     selectedSourcePath = path;
-    pathDisplay.textContent = path;
     const nameSpan = dropzone.querySelector("span");
     if (nameSpan) {
       nameSpan.textContent = "แอดออนที่เลือก: " + path.split(/[\\/]/).pop();
@@ -116,37 +101,27 @@ function renderIntake(card, main) {
 
   dropzone.addEventListener("dragover", (e) => {
     e.preventDefault();
+    e.stopPropagation();
     dropzone.classList.add("dragover");
   });
 
-  dropzone.addEventListener("dragleave", () => {
+  dropzone.addEventListener("dragleave", (e) => {
+    e.stopPropagation();
     dropzone.classList.remove("dragover");
   });
 
-  dropzone.addEventListener("drop", (e) => {
+  dropzone.addEventListener("drop", async (e) => {
     e.preventDefault();
+    e.stopPropagation();
     dropzone.classList.remove("dragover");
     const file = e.dataTransfer.files[0];
-    if (file && file.path) {
-      handleInspect(file.path);
-    }
-  });
-
-  pickFolderBtn.addEventListener("click", async () => {
-    try {
-      const p = await pickSingle({ mode: "folder" });
-      if (p) handleInspect(p);
-    } catch (e) {
-      toast.error("เลือกโฟลเดอร์ไม่ได้: " + e.message);
-    }
-  });
-
-  pickFileBtn.addEventListener("click", async () => {
-    try {
-      const p = await pickSingle({ mode: "open_file", filters: ["Addon (*.mcaddon)", "Pack (*.mcpack)", "Archive (*.zip)"] });
-      if (p) handleInspect(p);
-    } catch (e) {
-      toast.error("เลือกไฟล์ไม่ได้: " + e.message);
+    if (file) {
+      try {
+        const localPath = await resolveDroppedFile(file);
+        handleInspect(localPath);
+      } catch (err) {
+        toast.error(`ตรวจพบข้อผิดพลาด: ${err.message}`);
+      }
     }
   });
 
@@ -199,51 +174,25 @@ function renderAttachableWorkspace(workspace, att) {
 
   const toolSel = el("select", {}, ...tools.map(t => el("option", { value: t.id }, t.label)));
 
-  // Pre-filled Paths inputs
-  const animInput = el("input", { type: "text", value: att.animations[0]?.file_path || att.all_animation_files[0] || "" });
-  const modelInput = el("input", { type: "text", value: att.model_path || "" });
-  const attachInput = el("input", { type: "text", value: att.attachable_path || "" });
-
-  const getParentDir = (filePath) => {
-    if (!filePath) return "";
-    const lastSlash = Math.max(filePath.lastIndexOf("/"), filePath.lastIndexOf("\\"));
-    return lastSlash !== -1 ? filePath.substring(0, lastSlash) : "";
-  };
-
-  const animPickerBtn = el("button", { class: "btn-ghost btn-sm" }, "เลือก");
-  const modelPickerBtn = el("button", { class: "btn-ghost btn-sm" }, "เลือก");
-  const attachPickerBtn = el("button", { class: "btn-ghost btn-sm" }, "เลือก");
-
-  animPickerBtn.addEventListener("click", async () => {
-    const directory = getParentDir(animInput.value.trim());
-    const p = await pickSingle({ mode: "open_file", filters: ["JSON (*.json)"], directory });
-    if (p) animInput.value = p;
-  });
-  modelPickerBtn.addEventListener("click", async () => {
-    const directory = getParentDir(modelInput.value.trim());
-    const p = await pickSingle({ mode: "open_file", filters: ["JSON (*.json)"], directory });
-    if (p) modelInput.value = p;
-  });
-  attachPickerBtn.addEventListener("click", async () => {
-    const directory = getParentDir(attachInput.value.trim());
-    const p = await pickSingle({ mode: "open_file", filters: ["JSON (*.json)"], directory });
-    if (p) attachInput.value = p;
-  });
+  // Pre-filled Paths compact dropzones
+  const animInput = compactDropzone("ลากไฟล์แอนิเมชัน (.json) มาวาง หรือคลิกเพื่อเลือก *", ["JSON (*.json)"], att.animations[0]?.file_path || att.all_animation_files[0] || "");
+  const modelInput = compactDropzone("ลากไฟล์โมเดลสามมิติ (.geo.json) มาวาง หรือคลิกเพื่อเลือก *", ["JSON (*.json)"], att.model_path || "");
+  const attachInput = compactDropzone("ลากไฟล์ประกอบชิ้นส่วน Attachable (.json) มาวาง หรือคลิกเพื่อเลือก (optional)", ["JSON (*.json)"], att.attachable_path || "");
 
   configCard.append(
     el("div", { class: "card-title" }, "การตั้งค่าโมเดลและไฟล์อ้างอิง"),
     el("div", { class: "field" }, el("label", {}, "เลือกประเภทฟิสิกส์"), toolSel),
     el("div", { class: "field" }, 
       el("label", {}, "ไฟล์อ้างอิงแอนิเมชัน (Animation File) *"), 
-      el("div", { class: "file-pick" }, animInput, animPickerBtn)
+      animInput.node
     ),
     el("div", { class: "field" }, 
       el("label", {}, "ไฟล์โมเดลสามมิติ (Model File) *"), 
-      el("div", { class: "file-pick" }, modelInput, modelPickerBtn)
+      modelInput.node
     ),
     el("div", { class: "field" }, 
       el("label", {}, "ไฟล์ประกอบชิ้นส่วน (Attachable File) — ว่างได้"), 
-      el("div", { class: "file-pick" }, attachInput, attachPickerBtn)
+      attachInput.node
     )
   );
 
@@ -385,6 +334,23 @@ function renderAttachableWorkspace(workspace, att) {
   activeGroups = JSON.parse(JSON.stringify(att.discovered_chains || []));
   renderGroupList();
 
+  // Listen for model changes to extract new bones automatically
+  modelInput.node.addEventListener("change", async () => {
+    const mp = modelInput.value();
+    if (!mp) return;
+    try {
+      const res = await api.post("/api/physics/extract_model", { model_path: mp });
+      att.bones = res.bones || [];
+      att.discovered_chains = res.discovered_chains || [];
+      activeGroups = JSON.parse(JSON.stringify(att.discovered_chains));
+      populateModelBones();
+      renderGroupList();
+      toast.success("อัปเดตกระดูกตามโมเดลใหม่แล้ว");
+    } catch (e) {
+      toast.error("ดึงกระดูกล้มเหลว: " + e.message);
+    }
+  });
+
   // 3. Tuning & Action Controls Card
   const tuningCard = el("div", { class: "card", style: "margin-bottom:14px;" });
   workspace.append(tuningCard);
@@ -451,9 +417,9 @@ function renderAttachableWorkspace(workspace, att) {
     
     const body = {
       tool: tool.id,
-      animation_path: animInput.value.trim(),
-      model_path: modelInput.value.trim() || null,
-      attachable_path: attachInput.value.trim() || null,
+      animation_path: animInput.value().trim(),
+      model_path: modelInput.value().trim() || null,
+      attachable_path: attachInput.value().trim() || null,
       prefixes: [], // Not used when bone_groups are provided
       bone_groups: activeGroups.map(g => ({
         prefix: g.prefix,
@@ -461,7 +427,8 @@ function renderAttachableWorkspace(workspace, att) {
       })),
       bone_name: headField ? headField.value.trim() : null,
       intensity: intensitySel.value,
-      strength: strengthInput.value ? parseFloat(strengthInput.value) : null
+      strength: strengthInput.value ? parseFloat(strengthInput.value) : null,
+      source_path: selectedSourcePath
     };
 
     applyBtn.disabled = true;
@@ -474,6 +441,16 @@ function renderAttachableWorkspace(workspace, att) {
       logBox.innerHTML = "";
       logBox.append(el("span", { class: "log-ok" }, "✅ ติดตั้งฟิสิกส์อัจฉริยะเสร็จสมบูรณ์เรียบร้อยแล้ว!\n\n" + (res.log || []).join("\n")));
       logBox.append(el("span", {}, "\n\n💾 ไฟล์สำรองดั้งเดิมเขียนไว้ที่:\n" + (res.backups || []).join("\n")));
+      
+      if (res.exported_path && selectedSourcePath.includes("bright_studio_uploads")) {
+        const dlUrl = getApiBase() + "/api/dialog/download?path=" + encodeURIComponent(res.exported_path);
+        const a = el("a", { href: dlUrl, download: "", style: "display:none;" });
+        document.body.append(a);
+        a.click();
+        a.remove();
+        logBox.append(el("span", { style: "color:var(--neon-cyan);display:block;margin-top:10px;font-weight:bold;" }, `📥 กำลังดาวน์โหลดแอดออนลงเครื่องของคุณ: ${res.exported_path.split(/[\\/]/).pop()}`));
+      }
+      
       t.success("ใส่ฟิสิกส์สำเร็จ");
     } catch (e) {
       logBox.innerHTML = "";
@@ -483,4 +460,95 @@ function renderAttachableWorkspace(workspace, att) {
       applyBtn.disabled = false;
     }
   });
+}
+
+function compactDropzone(placeholder, filters, initialValue = "", mode = "open_file") {
+  let value = initialValue;
+  
+  const iconEl = el("span", { class: "cd-icon" }, icon(mode === "folder" ? "folder" : "upload", { size: 14 }));
+  const labelEl = el("span", { class: "cd-label" }, value ? value.split(/[\\/]/).pop() : placeholder);
+  if (value) {
+    labelEl.style.color = "var(--text)";
+  }
+
+  const node = el("div", { class: "compact-dropzone" },
+    iconEl,
+    labelEl
+  );
+  node.title = value || placeholder;
+
+  const updateValue = (newVal) => {
+    value = newVal;
+    labelEl.textContent = value ? value.split(/[\\/]/).pop() : placeholder;
+    labelEl.style.color = value ? "var(--text)" : "";
+    node.title = value || placeholder;
+  };
+
+  const getParentDir = (filePath) => {
+    if (!filePath) return "";
+    const lastSlash = Math.max(filePath.lastIndexOf("/"), filePath.lastIndexOf("\\"));
+    return lastSlash !== -1 ? filePath.substring(0, lastSlash) : "";
+  };
+
+  node.addEventListener("click", async () => {
+    try {
+      const directory = getParentDir(value);
+      const p = await pickSingle({ mode, filters: mode === "folder" ? undefined : filters, directory });
+      if (p) {
+        updateValue(p);
+        node.dispatchEvent(new Event("change"));
+      }
+    } catch (e) {
+      toast.error("เลือกไฟล์ไม่ได้: " + e.message);
+    }
+  });
+
+  node.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    node.classList.add("dragover");
+  });
+  node.addEventListener("dragleave", (e) => {
+    e.stopPropagation();
+    node.classList.remove("dragover");
+  });
+  node.addEventListener("drop", async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    node.classList.remove("dragover");
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      const fileName = file.path || file.name || "";
+      const pathLower = fileName.toLowerCase();
+      let isValid = true;
+      if (mode !== "folder" && filters && filters.length > 0) {
+        const allowedExts = [];
+        for (const f of filters) {
+          for (const m of String(f).matchAll(/\*(\.[A-Za-z0-9]+)/g)) {
+            allowedExts.push(m[1].toLowerCase());
+          }
+        }
+        if (allowedExts.length > 0) {
+          isValid = allowedExts.some(ext => pathLower.endsWith(ext));
+        }
+      }
+      if (isValid) {
+        try {
+          const localPath = await resolveDroppedFile(file);
+          updateValue(localPath);
+          node.dispatchEvent(new Event("change"));
+        } catch (err) {
+          toast.error(`นำเข้าไฟล์ล้มเหลว: ${err.message}`);
+        }
+      } else {
+        toast.error(`ไฟล์ไม่ตรงกับประเภทที่กำหนดสำหรับช่องนี้`);
+      }
+    }
+  });
+
+  return {
+    node,
+    value: () => value,
+    setValue: (v) => updateValue(v)
+  };
 }

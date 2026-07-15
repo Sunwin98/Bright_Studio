@@ -17,6 +17,7 @@ let allWorlds = [];
 let searchQuery = "";
 let filterType = "all"; // all, bp, rp
 let sortBy = "name"; // name, mtime
+const selectedPaths = new Set();
 
 function iconUrl(path) { return getApiBase() + "/api/fm/icon?path=" + encodeURIComponent(path); }
 
@@ -62,6 +63,82 @@ function actionBtns(path, name, kind) {
   );
 }
 
+function selectControl(path, name, redraw) {
+  const checkbox = el("input", {
+    type: "checkbox",
+    class: "fm-select",
+    "aria-label": `เลือก${name}`,
+  });
+  checkbox.checked = selectedPaths.has(path);
+  checkbox.addEventListener("change", () => {
+    if (checkbox.checked) selectedPaths.add(path);
+    else selectedPaths.delete(path);
+    redraw();
+  });
+  const wrap = el("label", { class: "fm-select-wrap", title: `เลือก${name}` }, checkbox);
+  wrap.addEventListener("click", (e) => e.stopPropagation());
+  return wrap;
+}
+
+function bulkToolbar(items, allItems, noun, redraw) {
+  const selectAll = el("input", { type: "checkbox", class: "project-select-all", "aria-label": `เลือก${noun}ที่แสดงทั้งหมด` });
+  const selectedCount = el("span", { class: "bulk-selection-count" }, "ยังไม่ได้เลือก");
+  const clearBtn = el("button", { class: "btn-ghost btn-sm", type: "button", disabled: "" }, "ล้างที่เลือก");
+  const deleteBtn = el("button", { class: "btn-danger btn-sm", type: "button", disabled: "" }, icon("trash", { size: 14 }), " ลบที่เลือก");
+  const bar = el("div", { class: "bulk-toolbar fm-bulk-toolbar" },
+    el("label", { class: "bulk-select-all" }, selectAll, "เลือกทั้งหมด"),
+    selectedCount,
+    el("div", { class: "bulk-toolbar-spacer" }),
+    clearBtn,
+    deleteBtn,
+  );
+
+  const update = () => {
+    const visibleSelected = items.filter(item => selectedPaths.has(item.path)).length;
+    selectAll.checked = items.length > 0 && visibleSelected === items.length;
+    selectAll.indeterminate = visibleSelected > 0 && visibleSelected < items.length;
+    selectAll.disabled = items.length === 0;
+    selectedCount.textContent = selectedPaths.size ? `เลือกแล้ว ${selectedPaths.size} รายการ` : "ยังไม่ได้เลือก";
+    clearBtn.disabled = selectedPaths.size === 0;
+    deleteBtn.disabled = selectedPaths.size === 0;
+    bar.classList.toggle("has-selection", selectedPaths.size > 0);
+  };
+
+  selectAll.addEventListener("change", () => {
+    for (const item of items) {
+      if (selectAll.checked) selectedPaths.add(item.path);
+      else selectedPaths.delete(item.path);
+    }
+    redraw();
+  });
+  clearBtn.addEventListener("click", () => {
+    selectedPaths.clear();
+    redraw();
+  });
+  deleteBtn.addEventListener("click", async () => {
+    const selected = allItems.filter(item => selectedPaths.has(item.path));
+    if (!selected.length) { selectedPaths.clear(); redraw(); return; }
+    const ok = await confirmDialog({
+      title: "ลบที่เลือก", jp: "一括削除", danger: true, confirmLabel: "ลบทั้งหมด",
+      message: `ลบ ${selected.length} ${noun} ลงถังขยะ?\nสามารถกู้คืนได้จาก Recycle Bin`,
+    });
+    if (!ok) return;
+
+    deleteBtn.disabled = true;
+    try {
+      const result = await api.post("/api/fm/delete_many", { paths: selected.map(item => item.path) });
+      selectedPaths.clear();
+      await loadContent();
+      toast.success(`ลบแล้ว ${result.trashed.length} รายการ · ย้ายไปถังขยะแล้ว`);
+    } catch (e) {
+      toast.error("ลบไม่สำเร็จ: " + e.message);
+      update();
+    }
+  });
+  update();
+  return bar;
+}
+
 // เมนูกลาง "ส่งไปที่..." ของการ์ด addon — โยงทุกเครื่องมือ
 function addonMenu(p, x, y) {
   const tag = p.type === "behavior" ? "BP" : "RP";
@@ -81,6 +158,7 @@ function addonMenu(p, x, y) {
 function addonCard(p) {
   const tag = p.type === "behavior" ? "BP" : "RP";
   const card = el("div", { class: "fm-card clickable" },
+    selectControl(p.path, `addon ${p.name}`, renderPacks),
     cardIcon(p.icon, "box"),
     el("div", { class: "fm-card-body" },
       el("div", { class: "fm-card-name", title: p.name }, p.name),
@@ -96,6 +174,7 @@ function addonCard(p) {
 
 function worldCard(w) {
   const card = el("div", { class: "fm-card clickable" },
+    selectControl(w.path, `โลก ${w.name}`, renderWorlds),
     cardIcon(w.icon, "globe"),
     el("div", { class: "fm-card-body" },
       el("div", { class: "fm-card-name", title: w.name }, w.name),
@@ -209,6 +288,7 @@ function renderPacks() {
   
   filtered.sort((a, b) => a.name.localeCompare(b.name));
 
+  contentEl.append(bulkToolbar(filtered, allPacks, "addon", renderPacks));
   if (!filtered.length) { contentEl.append(el("div", { class: "empty" }, "ไม่พบ addon")); return; }
   const grid = el("div", { class: "fm-grid" });
   for (const p of filtered) grid.append(addonCard(p));
@@ -228,6 +308,7 @@ function renderWorlds() {
     filtered.sort((a, b) => b.mtime - a.mtime);
   }
 
+  contentEl.append(bulkToolbar(filtered, allWorlds, "โลก", renderWorlds));
   if (!filtered.length) { contentEl.append(el("div", { class: "empty" }, "ไม่พบโลก")); return; }
   const grid = el("div", { class: "fm-grid" });
   for (const w of filtered) grid.append(worldCard(w));
@@ -236,6 +317,7 @@ function renderWorlds() {
 
 async function loadContent() {
   if (!profiles.length) return;
+  selectedPaths.clear();
   contentEl.innerHTML = '<div class="loading">กำลังโหลด...</div>';
   try {
     if (curTab === "addons") {
@@ -335,6 +417,7 @@ export async function render(main, params) {
     const b = el("button", { class: "fm-tab" + (id === curTab ? " active" : "") }, label);
     b.addEventListener("click", () => {
       curTab = id;
+      selectedPaths.clear();
       searchQuery = "";
       searchInput.value = "";
       curProfile = autoProfileFor(id);
@@ -359,6 +442,7 @@ export async function render(main, params) {
   const worldParam = params && params.get("world");
   if (worldParam) {
     curTab = "worlds";
+    selectedPaths.clear();
     searchQuery = "";
     searchInput.value = "";
     curProfile = autoProfileFor("worlds");

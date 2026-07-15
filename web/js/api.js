@@ -25,6 +25,7 @@ async function req(method, path, body) {
 export const api = {
   get: (p) => req("GET", p),
   post: (p, b) => req("POST", p, b),
+  delete: (p) => req("DELETE", p),
 };
 
 // File/folder picker — opens the themed in-app explorer (ui/explorer.js),
@@ -74,4 +75,20 @@ export function el(tag, attrs = {}, ...children) {
     node.append(c.nodeType ? c : document.createTextNode(c));
   }
   return node;
+}
+
+export async function resolveDroppedFile(file) {
+  if (file.path) return file.path;
+  const formData = new FormData();
+  formData.append("file", file);
+  const base = getApiBase();
+  const res = await fetch(base + "/api/dialog/upload", {
+    method: "POST",
+    body: formData
+  });
+  if (!res.ok) {
+    throw new Error("อัปโหลดไฟล์ล้มเหลว");
+  }
+  const data = await res.json();
+  return data.path;
 }

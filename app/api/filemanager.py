@@ -104,6 +104,10 @@ class PathBody(BaseModel):
     path: str
 
 
+class PathsBody(BaseModel):
+    paths: list[str]
+
+
 @router.post("/delete")
 def delete(body: PathBody):
     target, _ = _guard(body.path)
@@ -118,6 +122,34 @@ def delete(body: PathBody):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"ลบไม่สำเร็จ: {e}")
     return {"ok": True, "trashed": str(target)}
+
+
+@router.post("/delete_many")
+def delete_many(body: PathsBody):
+    if not body.paths:
+        raise HTTPException(status_code=400, detail="กรุณาเลือกรายการที่จะลบ")
+    try:
+        from send2trash import send2trash
+    except ImportError:
+        raise HTTPException(status_code=500, detail="ต้องติดตั้ง send2trash (pip install send2trash)")
+
+    # Validate every path before moving any item to the Recycle Bin.
+    targets = []
+    seen = set()
+    for raw in body.paths:
+        target, _ = _guard(raw)
+        if not target.exists():
+            raise HTTPException(status_code=404, detail=f"ไม่พบไฟล์/โฟลเดอร์: {raw}")
+        key = str(target).lower()
+        if key not in seen:
+            seen.add(key)
+            targets.append(target)
+    try:
+        for target in targets:
+            send2trash(str(target))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"ลบไม่สำเร็จ: {e}")
+    return {"ok": True, "trashed": [str(target) for target in targets]}
 
 
 @router.post("/reveal")

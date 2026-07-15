@@ -1,4 +1,4 @@
-import { api, el, pickSingle, renderValidation } from "../api.js";
+import { api, el, pickSingle, renderValidation, resolveDroppedFile } from "../api.js";
 import { icon } from "../ui/icons.js";
 import { toast } from "../ui/toast.js";
 
@@ -24,7 +24,7 @@ export function render(main) {
     el("option", { value: "special" }, "Special UI (Custom สีชมพู)"),
     el("option", { value: "none" }, "No UI (สกินธรรมดา ไม่มี Selector)"),
   );
-  const outInput = el("input", { type: "text", placeholder: "ว่าง = Projects/ (ค่าเริ่มต้น)" });
+  const outInput = compactDropzone("ว่าง = Projects/ (ค่าเริ่มต้น)", [], "", "folder");
 
   const xboxToggle = el("input", { type: "checkbox" });
   const xboxPlayers = el("input", { type: "text", placeholder: "ชื่อ Xbox คั่นด้วย , (Iamsayhi1 ถูกเพิ่มอัตโนมัติ)" });
@@ -39,7 +39,7 @@ export function render(main) {
     el("div", { class: "field" }, el("label", {}, "ชื่อ Add-on"), nameInput),
     el("div", { class: "row" },
       el("div", { class: "field" }, el("label", {}, "ประเภท UI"), uiSelect),
-      el("div", { class: "field" }, el("label", {}, "โฟลเดอร์ปลายทาง (output)"), outInput),
+      el("div", { class: "field" }, el("label", {}, "โฟลเดอร์ปลายทาง (output)"), outInput.node),
     ),
     el("div", { class: "field" }, el("label", { class: "toggle" }, xboxToggle, "ล็อก Xbox username")),
     xboxWrap,
@@ -50,18 +50,9 @@ export function render(main) {
   const skinsCard = el("div", { class: "card" });
   const skinsList = el("div", {});
   const addBtn = el("button", { class: "btn-ghost btn-sm" }, "+ เพิ่มสกินเปล่า");
-  
-  const dropzone = el("div", { class: "mg-dropzone", style: "margin-bottom:14px;" },
-    el("div", { class: "mg-dropzone-inner" },
-      icon("palette", { size: 26 }),
-      el("span", {}, "ลากไฟล์สกิน (.png) มาวางที่นี่เพื่อนำเข้าสกิน"),
-      el("small", {}, "หรือคลิกเพื่อเลือกไฟล์สกิน")
-    )
-  );
 
   skinsCard.append(
     el("div", { class: "card-title" }, "สกิน"),
-    dropzone,
     skinsList,
     addBtn,
   );
@@ -70,37 +61,24 @@ export function render(main) {
   addBtn.addEventListener("click", () => skinsList.append(makeSkinRow()));
   skinsList.append(makeSkinRow());
 
-  // Click on dropzone to choose file
-  dropzone.addEventListener("click", async () => {
-    try {
-      const p = await pickSingle({ mode: "open_file", filters: ["Images (*.png)"] });
-      if (p) {
-        const existingRows = Array.from(skinsList.children);
-        if (existingRows.length === 1) {
-          const firstRow = existingRows[0];
-          if (firstRow._collect && !firstRow._collect()) {
-            firstRow.remove();
-          }
-        }
-        skinsList.append(makeSkinRow(p));
-      }
-    } catch (e) {
-      toast.error("เลือกไฟล์สกินไม่ได้: " + e.message);
-    }
-  });
-
   const setupDragDrop = (element) => {
     element.addEventListener("dragover", (e) => {
       e.preventDefault();
-      dropzone.classList.add("dragover");
+      e.stopPropagation();
+      skinsCard.classList.add("dragover");
     });
-    element.addEventListener("dragleave", () => {
-      dropzone.classList.remove("dragover");
+    element.addEventListener("dragleave", (e) => {
+      e.stopPropagation();
+      skinsCard.classList.remove("dragover");
     });
-    element.addEventListener("drop", (e) => {
+    element.addEventListener("drop", async (e) => {
       e.preventDefault();
-      dropzone.classList.remove("dragover");
-      const files = Array.from(e.dataTransfer.files).filter(f => f.path && f.path.toLowerCase().endsWith(".png"));
+      e.stopPropagation();
+      skinsCard.classList.remove("dragover");
+      const files = Array.from(e.dataTransfer.files).filter(f => {
+        const name = f.path || f.name || "";
+        return name.toLowerCase().endsWith(".png");
+      });
       if (files.length > 0) {
         const existingRows = Array.from(skinsList.children);
         if (existingRows.length === 1) {
@@ -110,14 +88,18 @@ export function render(main) {
           }
         }
         for (const file of files) {
-          skinsList.append(makeSkinRow(file.path));
+          try {
+            const localPath = await resolveDroppedFile(file);
+            skinsList.append(makeSkinRow(localPath));
+          } catch (err) {
+            toast.error(`เพิ่มสกินล้มเหลว: ${err.message}`);
+          }
         }
         toast.success(`เพิ่มสกินสำเร็จ ${files.length} รายการ`);
       }
     });
   };
 
-  setupDragDrop(dropzone);
   setupDragDrop(skinsCard);
 
   // ── Build ──
@@ -137,7 +119,7 @@ export function render(main) {
       ui_mode: uiSelect.value,
       xbox_lock: xboxToggle.checked,
       xbox_players: xboxPlayers.value.split(",").map(s => s.trim()).filter(Boolean),
-      output_dir: outInput.value.trim() || null,
+      output_dir: outInput.value().trim() || null,
       skins,
     };
     buildBtn.disabled = true;
@@ -165,19 +147,24 @@ export function render(main) {
 }
 
 function makeSkinRow(initialSkinPath = "") {
-  const skinPath = filePicker("ไฟล์ Skin (.png)", ["Images (*.png)"], initialSkinPath);
-  const modelPath = filePicker("Model (.geo.json) — ว่าง = ต้นแบบ", ["JSON (*.json)"]);
-  const animPath = filePicker("Animation (.json) — ว่าง = ข้าม", ["JSON (*.json)"]);
+  const skinPath = compactDropzone("ลากไฟล์ Skin (.png) มาวาง หรือคลิกเพื่อเลือก *", ["Images (*.png)"], initialSkinPath);
+  const modelPath = compactDropzone("ลากไฟล์ Model (.geo.json) มาวาง หรือคลิกเพื่อเลือก (optional)", ["JSON (*.json)"]);
+  const animPath = compactDropzone("ลากไฟล์ Animation (.json) มาวาง หรือคลิกเพื่อเลือก (optional)", ["JSON (*.json)"]);
   const nameInput = el("input", { type: "text", placeholder: "ว่าง = ชื่อไฟล์" });
   const slotSel = el("select", {}, ...SLOTS.map(([v, t]) => el("option", { value: v }, t)));
   const preview = el("img", { width: "48", height: "48", style: "image-rendering:pixelated;border-radius:6px;background:#1e1f22;display:none" });
   const previewBtn = el("button", { class: "btn-ghost btn-sm" }, "ดู icon");
   const removeBtn = el("button", { class: "btn-ghost btn-sm" }, "ลบ");
-
+ 
   if (initialSkinPath) {
     const filename = initialSkinPath.split(/[\\/]/).pop().replace(/\.png$/i, "");
     nameInput.value = filename;
   }
+
+  // Preview listener should watch for changes
+  skinPath.node.addEventListener("change", () => {
+    preview.style.display = "none";
+  });
 
   previewBtn.addEventListener("click", async () => {
     const p = skinPath.value();
@@ -188,7 +175,7 @@ function makeSkinRow(initialSkinPath = "") {
       preview.style.display = "inline-block";
     } catch (e) { toast.error("preview ไม่ได้: " + e.message); }
   });
-
+ 
   const row = el("div", { class: "card", style: "background:#2b2d31" },
     el("div", { class: "field" }, el("label", {}, "ไฟล์ Skin (.png) *"), skinPath.node),
     el("div", { class: "row" },
@@ -200,7 +187,7 @@ function makeSkinRow(initialSkinPath = "") {
     el("div", { class: "row", style: "align-items:center;gap:12px" }, previewBtn, preview, removeBtn),
   );
   removeBtn.addEventListener("click", () => row.remove());
-
+ 
   row._collect = () => {
     const sp = skinPath.value();
     if (!sp) return null;
@@ -214,7 +201,7 @@ function makeSkinRow(initialSkinPath = "") {
   };
   return row;
 }
-
+ 
 function collectSkins() {
   const out = [];
   for (const node of document.querySelectorAll("#main .card")) {
@@ -225,48 +212,67 @@ function collectSkins() {
   }
   return out;
 }
-
-// A text input + native picker button. Returns {node, value()}.
-function filePicker(placeholder, filters, initialValue = "") {
-  const input = el("input", { type: "text", placeholder, value: initialValue });
-  const btn = el("button", { class: "btn-ghost btn-sm" }, "เลือก");
-  if (initialValue) {
-    input.value = initialValue;
-  }
+ 
+function compactDropzone(placeholder, filters, initialValue = "", mode = "open_file") {
+  let value = initialValue;
   
+  const iconEl = el("span", { class: "cd-icon" }, icon(mode === "folder" ? "folder" : "upload", { size: 14 }));
+  const labelEl = el("span", { class: "cd-label" }, value ? value.split(/[\\/]/).pop() : placeholder);
+  if (value) {
+    labelEl.style.color = "var(--text)";
+  }
+
+  const node = el("div", { class: "compact-dropzone" },
+    iconEl,
+    labelEl
+  );
+  node.title = value || placeholder;
+
+  const updateValue = (newVal) => {
+    value = newVal;
+    labelEl.textContent = value ? value.split(/[\\/]/).pop() : placeholder;
+    labelEl.style.color = value ? "var(--text)" : "";
+    node.title = value || placeholder;
+  };
+
   const getParentDir = (filePath) => {
     if (!filePath) return "";
     const lastSlash = Math.max(filePath.lastIndexOf("/"), filePath.lastIndexOf("\\"));
     return lastSlash !== -1 ? filePath.substring(0, lastSlash) : "";
   };
 
-  btn.addEventListener("click", async () => {
+  node.addEventListener("click", async () => {
     try {
-      const directory = getParentDir(input.value.trim());
-      const p = await pickSingle({ mode: "open_file", filters, directory });
-      if (p) input.value = p;
+      const directory = getParentDir(value);
+      const p = await pickSingle({ mode, filters: mode === "folder" ? undefined : filters, directory });
+      if (p) {
+        updateValue(p);
+        node.dispatchEvent(new Event("change"));
+      }
     } catch (e) {
-      if (e.status === 501) input.focus();   // browser dev mode: type path manually
-      else toast.error("เลือกไฟล์ไม่ได้: " + e.message);
+      toast.error("เลือกโฟลเดอร์ไม่ได้: " + e.message);
     }
   });
-  const node = el("div", { class: "file-pick" }, input, btn);
 
   node.addEventListener("dragover", (e) => {
     e.preventDefault();
+    e.stopPropagation();
     node.classList.add("dragover");
   });
-  node.addEventListener("dragleave", () => {
+  node.addEventListener("dragleave", (e) => {
+    e.stopPropagation();
     node.classList.remove("dragover");
   });
-  node.addEventListener("drop", (e) => {
+  node.addEventListener("drop", async (e) => {
     e.preventDefault();
+    e.stopPropagation();
     node.classList.remove("dragover");
     const file = e.dataTransfer.files[0];
-    if (file && file.path) {
-      const pathLower = file.path.toLowerCase();
+    if (file) {
+      const fileName = file.path || file.name || "";
+      const pathLower = fileName.toLowerCase();
       let isValid = true;
-      if (filters && filters.length > 0) {
+      if (mode !== "folder" && filters && filters.length > 0) {
         const allowedExts = [];
         for (const f of filters) {
           for (const m of String(f).matchAll(/\*(\.[A-Za-z0-9]+)/g)) {
@@ -278,13 +284,22 @@ function filePicker(placeholder, filters, initialValue = "") {
         }
       }
       if (isValid) {
-        input.value = file.path;
-        input.dispatchEvent(new Event("change"));
+        try {
+          const localPath = await resolveDroppedFile(file);
+          updateValue(localPath);
+          node.dispatchEvent(new Event("change"));
+        } catch (err) {
+          toast.error(`นำเข้าไฟล์ล้มเหลว: ${err.message}`);
+        }
       } else {
         toast.error(`ไฟล์ไม่ตรงกับประเภทที่กำหนดสำหรับช่องนี้`);
       }
     }
   });
 
-  return { node, value: () => input.value.trim() };
+  return {
+    node,
+    value: () => value,
+    setValue: (v) => updateValue(v)
+  };
 }

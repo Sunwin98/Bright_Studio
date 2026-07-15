@@ -3,3 +3,4 @@ uvicorn
 pywebview
 Pillow
 send2trash
+python-multipart

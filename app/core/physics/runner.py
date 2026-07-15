@@ -20,6 +20,7 @@ from app.core.physics.cape import CapePhysicsGenerator
 from app.core.physics.chest import ChestPhysicsGenerator
 from app.core.physics.front_hair import FrontHairPhysicsGenerator
 from app.core.physics.head import HeadRotationGenerator
+from app.core import history
 
 # tool -> metadata. bone_source: where bones are discovered for dry-run.
 TOOLS = {
@@ -120,6 +121,14 @@ def apply(payload: dict) -> dict:
     if meta["mode"] == "bone_name" and not bone_name:
         raise ValueError("ต้องระบุชื่อ bone")
 
+    history_snapshot = history.create_snapshot(
+        "แก้ไขฟิสิกส์",
+        [path for path in (animation_path, attachable_path) if path],
+        source=payload.get("source_path") or animation_path,
+        status="กำลังแก้ไข",
+    )
+    history_id = history_snapshot["id"]
+
     # backups (before any write)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     backups = [_backup(animation_path, stamp)]
@@ -128,8 +137,35 @@ def apply(payload: dict) -> dict:
 
     gen = meta["cls"]()
     buf = io.StringIO()
+    exported_path = None
     with contextlib.redirect_stdout(buf):
         _run_tool(tool, meta, gen, animation_path, model_path, attachable_path, prefixes, bone_name, payload)
+        
+        # Repackage if source_path is provided and is an archive
+        source_path = payload.get("source_path")
+        if source_path:
+            from pathlib import Path
+            import zipfile
+            src = Path(source_path)
+            if src.suffix.lower() in {".mcaddon", ".mcpack", ".zip"} and src.is_file():
+                anim_p = Path(animation_path)
+                try:
+                    parts = anim_p.parts
+                    if "hs_studio_packio" in parts:
+                        idx = parts.index("hs_studio_packio")
+                        temp_root = Path(*parts[:idx + 2])
+                        new_name = f"{src.stem}_physics{src.suffix}"
+                        new_path = src.parent / new_name
+                        
+                        with zipfile.ZipFile(new_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                            for f in temp_root.rglob("*"):
+                                if f.is_file():
+                                    zf.write(f, f.relative_to(temp_root))
+                        
+                        print(f"📦 สร้างและส่งออกแอดออนใหม่ที่มีฟิสิกส์สำเร็จแล้วที่: {new_path}")
+                        exported_path = str(new_path)
+                except Exception as e:
+                    print(f"⚠️ ไม่สามารถส่งออกไฟล์แอดออนใหม่ได้: {e}")
 
     # validate the files still parse
     _load_json(animation_path)
@@ -137,7 +173,8 @@ def apply(payload: dict) -> dict:
         _load_json(attachable_path)
 
     log = [ln for ln in buf.getvalue().splitlines() if ln.strip()]
-    return {"log": log, "backups": backups}
+    history.update_snapshot(history_id, changed=[animation_path] + ([attachable_path] if attachable_path else []), status="completed")
+    return {"log": log, "backups": backups, "exported_path": exported_path, "history_id": history_id}
 
 
 def _run_tool(tool, meta, gen, animation_path, model_path, attachable_path, prefixes, bone_name, payload):
